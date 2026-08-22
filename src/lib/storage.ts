@@ -22,8 +22,12 @@ const ALLOWED = new Set([
   'image/svg+xml',
 ])
 
-const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 15)
-const MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+const MAX_UPLOAD_MB = Number(
+  process.env.MAX_UPLOAD_MB || 15
+)
+
+const MAX_BYTES =
+  MAX_UPLOAD_MB * 1024 * 1024
 
 /**
  * Storage provider:
@@ -33,18 +37,24 @@ const MAX_BYTES = MAX_UPLOAD_MB * 1024 * 1024
  * local -> Local filesystem (development / Docker)
  */
 const provider = (() => {
-  const configured = process.env.STORAGE_PROVIDER?.toLowerCase()
+  const configured =
+    process.env.STORAGE_PROVIDER?.toLowerCase()
 
   // Vercel filesystem is read-only.
   // Never use local storage on Vercel.
   if (process.env.VERCEL === '1') {
-    if (configured === 's3') return 's3'
+    if (configured === 's3') {
+      return 's3'
+    }
+
     return 'blob'
   }
 
   return (
     configured ||
-    (process.env.BLOB_READ_WRITE_TOKEN ? 'blob' : 'local')
+    (process.env.BLOB_READ_WRITE_TOKEN
+      ? 'blob'
+      : 'local')
   )
 })()
 
@@ -53,17 +63,28 @@ const provider = (() => {
 /* -------------------------------------------------------------------------- */
 
 const s3 =
-  provider === 's3' && process.env.S3_BUCKET
+  provider === 's3' &&
+  process.env.S3_BUCKET
     ? new S3Client({
-        region: process.env.S3_REGION || 'auto',
-        endpoint: process.env.S3_ENDPOINT || undefined,
-        forcePathStyle: !!process.env.S3_ENDPOINT,
+        region:
+          process.env.S3_REGION || 'auto',
+
+        endpoint:
+          process.env.S3_ENDPOINT ||
+          undefined,
+
+        forcePathStyle:
+          !!process.env.S3_ENDPOINT,
+
         credentials:
           process.env.S3_ACCESS_KEY_ID &&
           process.env.S3_SECRET_ACCESS_KEY
             ? {
-                accessKeyId: process.env.S3_ACCESS_KEY_ID,
-                secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+                accessKeyId:
+                  process.env.S3_ACCESS_KEY_ID,
+
+                secretAccessKey:
+                  process.env.S3_SECRET_ACCESS_KEY,
               }
             : undefined,
       })
@@ -90,41 +111,67 @@ export type StoredUpload = {
 function getLocalStorageBase(): string {
   const configuredBase =
     process.env.UPLOAD_DIR ||
-    path.join(process.cwd(), 'storage', 'uploads')
+    path.join(
+      process.cwd(),
+      'storage',
+      'uploads'
+    )
 
   return path.resolve(configuredBase)
 }
 
-function resolveLocalStoragePath(storageKey: string): string {
-  if (!storageKey || typeof storageKey !== 'string') {
-    throw new Error('Invalid storage key')
+function resolveLocalStoragePath(
+  storageKey: string
+): string {
+  if (
+    !storageKey ||
+    typeof storageKey !== 'string'
+  ) {
+    throw new Error(
+      'Invalid storage key'
+    )
   }
 
-  const normalized = path.normalize(storageKey)
+  const normalized =
+    path.normalize(storageKey)
 
   if (
     normalized === '..' ||
-    normalized.startsWith(`..${path.sep}`) ||
+    normalized.startsWith(
+      `..${path.sep}`
+    ) ||
     path.isAbsolute(normalized)
   ) {
-    throw new Error('Invalid storage key')
+    throw new Error(
+      'Invalid storage key'
+    )
   }
 
-  const base = getLocalStorageBase()
+  const base =
+    getLocalStorageBase()
 
-  const target = path.resolve(
-    path.join(base, normalized)
-  )
+  const target =
+    path.resolve(
+      path.join(
+        base,
+        normalized
+      )
+    )
 
-  const baseWithSeparator = base.endsWith(path.sep)
-    ? base
-    : `${base}${path.sep}`
+  const baseWithSeparator =
+    base.endsWith(path.sep)
+      ? base
+      : `${base}${path.sep}`
 
   if (
     target !== base &&
-    !target.startsWith(baseWithSeparator)
+    !target.startsWith(
+      baseWithSeparator
+    )
   ) {
-    throw new Error('Invalid storage key')
+    throw new Error(
+      'Invalid storage key'
+    )
   }
 
   return target
@@ -135,7 +182,13 @@ function resolveLocalStoragePath(storageKey: string): string {
 /* -------------------------------------------------------------------------- */
 
 function ensureProviderIsValid() {
-  if (!['blob', 's3', 'local'].includes(provider)) {
+  if (
+    ![
+      'blob',
+      's3',
+      'local',
+    ].includes(provider)
+  ) {
     throw new Error(
       `STORAGE_PROVIDER نامعتبر است: ${provider}. ` +
         `مقادیر مجاز: blob, s3, local`
@@ -158,22 +211,30 @@ export async function storeImage(
 
   if (!ALLOWED.has(file.type)) {
     throw new Error(
-      `فرمت تصویر مجاز نیست: ${file.type || 'unknown'}`
+      `فرمت تصویر مجاز نیست: ${
+        file.type || 'unknown'
+      }`
     )
   }
 
-  if (file.size <= 0 || file.size > MAX_BYTES) {
+  if (
+    file.size <= 0 ||
+    file.size > MAX_BYTES
+  ) {
     throw new Error(
       `حجم تصویر باید کمتر از ${MAX_UPLOAD_MB}MB باشد`
     )
   }
 
-  const input = Buffer.from(
-    await file.arrayBuffer()
-  )
+  const input =
+    Buffer.from(
+      await file.arrayBuffer()
+    )
 
   if (!input.length) {
-    throw new Error('فایل تصویر خالی است')
+    throw new Error(
+      'فایل تصویر خالی است'
+    )
   }
 
   /* ------------------------------------------------------------------------ */
@@ -183,13 +244,21 @@ export async function storeImage(
   let meta
 
   try {
-    meta = await sharp(input).metadata()
+    meta =
+      await sharp(input).metadata()
   } catch {
-    throw new Error('فایل تصویر معتبر نیست')
+    throw new Error(
+      'فایل تصویر معتبر نیست'
+    )
   }
 
-  if (!meta.width || !meta.height) {
-    throw new Error('فایل تصویر معتبر نیست')
+  if (
+    !meta.width ||
+    !meta.height
+  ) {
+    throw new Error(
+      'فایل تصویر معتبر نیست'
+    )
   }
 
   /* ------------------------------------------------------------------------ */
@@ -199,12 +268,13 @@ export async function storeImage(
   let optimized: Buffer
 
   try {
-    optimized = await sharp(input)
-      .rotate()
-      .webp({
-        quality: 82,
-      })
-      .toBuffer()
+    optimized =
+      await sharp(input)
+        .rotate()
+        .webp({
+          quality: 82,
+        })
+        .toBuffer()
   } catch {
     throw new Error(
       'پردازش و تبدیل تصویر ناموفق بود'
@@ -221,15 +291,27 @@ export async function storeImage(
   /* Storage key                                                              */
   /* ------------------------------------------------------------------------ */
 
-  const year = new Date().getUTCFullYear()
+  const year =
+    new Date().getUTCFullYear()
 
   const key =
     `${year}/${crypto.randomUUID()}.webp`
 
-  let url = `/api/media/${key}`
+  /*
+   * Important:
+   *
+   * For private Vercel Blob the blob URL itself
+   * must not be used as the public application URL.
+   *
+   * The application serves the file through:
+   *
+   * /api/media/[...key]
+   */
+  let url =
+    `/api/media/${key}`
 
   /* ======================================================================== */
-  /* VERCEL BLOB                                                              */
+  /* VERCEL BLOB - PRIVATE                                                    */
   /* ======================================================================== */
 
   if (provider === 'blob') {
@@ -242,28 +324,56 @@ export async function storeImage(
       )
     }
 
-    const blob = await put(
+    await put(
       key,
       optimized,
       {
-        access: 'public',
+        /*
+         * The Vercel Blob Store is configured
+         * with PRIVATE access.
+         */
+        access: 'private',
+
         token,
-        contentType: 'image/webp',
-        cacheControlMaxAge: 31536000,
-        addRandomSuffix: false,
+
+        contentType:
+          'image/webp',
+
+        cacheControlMaxAge:
+          31536000,
+
+        addRandomSuffix:
+          false,
       }
     )
 
-    url = blob.url
+    /*
+     * Do NOT use blob.url here.
+     *
+     * The database stores our internal media URL.
+     */
+    url =
+      `/api/media/${key}`
 
     return {
       storageKey: key,
+
       url,
-      originalName: file.name,
-      mimeType: 'image/webp',
-      size: optimized.length,
-      width: meta.width,
-      height: meta.height,
+
+      originalName:
+        file.name,
+
+      mimeType:
+        'image/webp',
+
+      size:
+        optimized.length,
+
+      width:
+        meta.width,
+
+      height:
+        meta.height,
     }
   }
 
@@ -272,7 +382,10 @@ export async function storeImage(
   /* ======================================================================== */
 
   if (provider === 's3') {
-    if (!s3 || !process.env.S3_BUCKET) {
+    if (
+      !s3 ||
+      !process.env.S3_BUCKET
+    ) {
       throw new Error(
         'S3/R2 تنظیم نشده است'
       )
@@ -280,30 +393,51 @@ export async function storeImage(
 
     await s3.send(
       new PutObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: key,
-        Body: optimized,
-        ContentType: 'image/webp',
+        Bucket:
+          process.env.S3_BUCKET,
+
+        Key:
+          key,
+
+        Body:
+          optimized,
+
+        ContentType:
+          'image/webp',
+
         CacheControl:
           'public,max-age=31536000,immutable',
       })
     )
 
-    url = process.env.S3_PUBLIC_BASE_URL
-      ? `${process.env.S3_PUBLIC_BASE_URL.replace(
-          /\/$/,
-          ''
-        )}/${key}`
-      : `/api/media/${key}`
+    url =
+      process.env.S3_PUBLIC_BASE_URL
+        ? `${process.env.S3_PUBLIC_BASE_URL.replace(
+            /\/$/,
+            ''
+          )}/${key}`
+        : `/api/media/${key}`
 
     return {
-      storageKey: key,
+      storageKey:
+        key,
+
       url,
-      originalName: file.name,
-      mimeType: 'image/webp',
-      size: optimized.length,
-      width: meta.width,
-      height: meta.height,
+
+      originalName:
+        file.name,
+
+      mimeType:
+        'image/webp',
+
+      size:
+        optimized.length,
+
+      width:
+        meta.width,
+
+      height:
+        meta.height,
     }
   }
 
@@ -330,13 +464,25 @@ export async function storeImage(
   )
 
   return {
-    storageKey: key,
+    storageKey:
+      key,
+
     url,
-    originalName: file.name,
-    mimeType: 'image/webp',
-    size: optimized.length,
-    width: meta.width,
-    height: meta.height,
+
+    originalName:
+      file.name,
+
+    mimeType:
+      'image/webp',
+
+    size:
+      optimized.length,
+
+    width:
+      meta.width,
+
+    height:
+      meta.height,
   }
 }
 
@@ -353,7 +499,10 @@ export async function deleteStoredFile(
     return
   }
 
-  /* Vercel Blob */
+  /* ======================================================================== */
+  /* VERCEL BLOB                                                              */
+  /* ======================================================================== */
+
   if (provider === 'blob') {
     const token =
       process.env.BLOB_READ_WRITE_TOKEN
@@ -365,19 +514,30 @@ export async function deleteStoredFile(
     }
 
     try {
-      await del(storageKey, {
-        token,
-      })
+      await del(
+        storageKey,
+        {
+          token,
+        }
+      )
     } catch {
-      // فایل ممکن است قبلاً حذف شده باشد.
+      /*
+       * File may already be deleted.
+       */
     }
 
     return
   }
 
-  /* S3 / R2 */
+  /* ======================================================================== */
+  /* S3 / R2                                                                  */
+  /* ======================================================================== */
+
   if (provider === 's3') {
-    if (!s3 || !process.env.S3_BUCKET) {
+    if (
+      !s3 ||
+      !process.env.S3_BUCKET
+    ) {
       throw new Error(
         'S3/R2 تنظیم نشده است'
       )
@@ -385,17 +545,25 @@ export async function deleteStoredFile(
 
     await s3.send(
       new DeleteObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: storageKey,
+        Bucket:
+          process.env.S3_BUCKET,
+
+        Key:
+          storageKey,
       })
     )
 
     return
   }
 
-  /* Local */
+  /* ======================================================================== */
+  /* LOCAL                                                                    */
+  /* ======================================================================== */
+
   const target =
-    resolveLocalStoragePath(storageKey)
+    resolveLocalStoragePath(
+      storageKey
+    )
 
   await unlink(target).catch(
     () => undefined
@@ -421,7 +589,7 @@ export async function readStoredFile(
   }
 
   /* ======================================================================== */
-  /* VERCEL BLOB                                                              */
+  /* VERCEL BLOB - PRIVATE                                                    */
   /* ======================================================================== */
 
   if (provider === 'blob') {
@@ -434,12 +602,13 @@ export async function readStoredFile(
       )
     }
 
-    const blob = await head(
-      storageKey,
-      {
-        token,
-      }
-    )
+    const blob =
+      await head(
+        storageKey,
+        {
+          token,
+        }
+      )
 
     if (!blob) {
       throw new Error(
@@ -447,10 +616,18 @@ export async function readStoredFile(
       )
     }
 
+    /*
+     * The Blob is private, therefore we retrieve it
+     * server-side using its authenticated URL.
+     */
     const response =
-      await fetch(blob.url, {
-        cache: 'no-store',
-      })
+      await fetch(
+        blob.url,
+        {
+          cache:
+            'no-store',
+        }
+      )
 
     if (!response.ok) {
       throw new Error(
@@ -462,9 +639,11 @@ export async function readStoredFile(
       await response.arrayBuffer()
 
     return {
-      data: Buffer.from(
-        arrayBuffer
-      ),
+      data:
+        Buffer.from(
+          arrayBuffer
+        ),
+
       contentType:
         blob.contentType ||
         response.headers.get(
@@ -479,19 +658,25 @@ export async function readStoredFile(
   /* ======================================================================== */
 
   if (provider === 's3') {
-    if (!s3 || !process.env.S3_BUCKET) {
+    if (
+      !s3 ||
+      !process.env.S3_BUCKET
+    ) {
       throw new Error(
         'S3/R2 تنظیم نشده است'
       )
     }
 
-    const out = await s3.send(
-      new GetObjectCommand({
-        Bucket:
-          process.env.S3_BUCKET,
-        Key: storageKey,
-      })
-    )
+    const out =
+      await s3.send(
+        new GetObjectCommand({
+          Bucket:
+            process.env.S3_BUCKET,
+
+          Key:
+            storageKey,
+        })
+      )
 
     if (!out.Body) {
       throw new Error(
@@ -503,7 +688,9 @@ export async function readStoredFile(
       await out.Body.transformToByteArray()
 
     return {
-      data: Buffer.from(bytes),
+      data:
+        Buffer.from(bytes),
+
       contentType:
         out.ContentType,
     }
@@ -519,8 +706,9 @@ export async function readStoredFile(
     )
 
   return {
-    data: await readFile(
-      target
-    ),
+    data:
+      await readFile(
+        target
+      ),
   }
 }
