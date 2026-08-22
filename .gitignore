@@ -55,3 +55,6 @@ server.log
 !/storage/uploads/.gitkeep
 
 backups/
+
+# Local database backups
+*.sql
