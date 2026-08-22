@@ -61,6 +61,8 @@ backups/
 
 # Local database backups
 *.sql
+!prisma/migrations/
+!prisma/migrations/**/*.sql
 
 # Local database backup
 stone_catalog_backup.sql
