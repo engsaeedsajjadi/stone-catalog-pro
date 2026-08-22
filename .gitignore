@@ -58,3 +58,6 @@ backups/
 
 # Local database backups
 *.sql
+
+# Local database backups
+*.sql
