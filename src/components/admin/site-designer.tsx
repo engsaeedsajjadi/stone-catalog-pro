@@ -1476,83 +1476,92 @@ function BlockFields({
     })
   }
 
-  /* ------------------------------ HERO ----------------------------------- */
+ /* ------------------------------ HERO ------------------------------------ */
 
-  if (block.type === "hero") {
-    const body = getString(
-      data.body
-    )
+if (block.type === "hero") {
+  const body = getString(data.body)
 
-    const backgroundImage =
-      getImageUrl(
-        block.imageUrl ??
-          data.backgroundImage
-      )
+  const images = getStringArray(data.images)
+  const mediaIds = getStringArray(data.imageMediaIds)
 
-    const uploaded: UploadedImage[] =
-      backgroundImage
-        ? [
-            {
-              id: getString(
-                data.imageMediaId,
-                "hero"
-              ),
-              url: backgroundImage,
-              originalName: "hero",
-              mimeType: "image/*",
-              size: 0,
-            },
-          ]
-        : []
+  const uploaded: UploadedImage[] = images.map(
+    (url, index) => ({
+      id: mediaIds[index] ?? String(index),
+      url,
+      originalName: `hero-${index + 1}`,
+      mimeType: "image/*",
+      size: 0,
+    })
+  )
 
-    return (
-      <div className="space-y-3">
-        <Label>
-          متن اصلی
-        </Label>
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>متن اصلی</Label>
 
         <Textarea
           value={body}
           onChange={(event) =>
-            setData(
-              "body",
-              event.target.value
-            )
+            setData("body", event.target.value)
           }
           rows={4}
         />
+      </div>
 
+      <div>
         <Label>
-          تصویر پس‌زمینه
+          تصاویر Hero / اسلایدر
         </Label>
+
+        <p className="text-xs text-muted-foreground mt-1 mb-3">
+          حداکثر ۸ تصویر برای اسلایدر صفحه اصلی انتخاب کنید.
+        </p>
 
         <ImageUploader
           value={uploaded}
-          multiple={false}
+          multiple={true}
+          maxFiles={8}
           onChange={(items) => {
-            const image =
-              items[0]
+            const limited = items.slice(0, 8)
 
-            update({
-              imageUrl:
-                image?.url ??
-                "",
-              data: {
-                ...data,
-                imageMediaId:
-                  image?.id ??
-                  "",
-                backgroundImage:
-                  image?.url ??
-                  "",
-              },
-            })
+            setData(
+              "images",
+              limited
+                .map((item) => item.url)
+                .filter(
+                  (url): url is string =>
+                    typeof url === "string" &&
+                    url.length > 0
+                )
+            )
+
+            setData(
+              "imageMediaIds",
+              limited
+                .map((item) => item.id)
+                .filter(
+                  (id): id is string =>
+                    typeof id === "string" &&
+                    id.length > 0
+                )
+            )
+
+            setData(
+              "backgroundImage",
+              limited[0]?.url ?? ""
+            )
           }}
         />
-      </div>
-    )
-  }
 
+        <div className="mt-3 text-sm text-muted-foreground">
+          {uploaded.length > 0
+            ? `${uploaded.length} از ۸ تصویر انتخاب شده`
+            : "هنوز تصویری انتخاب نشده است"}
+        </div>
+      </div>
+    </div>
+  )
+}
   /* --------------------------- IMAGE TEXT -------------------------------- */
 
   if (
