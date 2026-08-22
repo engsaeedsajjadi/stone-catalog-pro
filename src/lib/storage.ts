@@ -1,4 +1,3 @@
-
 import { mkdir, writeFile, unlink, readFile } from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
@@ -10,6 +9,10 @@ import {
   DeleteObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3'
+
+/* -------------------------------------------------------------------------- */
+/* Allowed image formats                                                      */
+/* -------------------------------------------------------------------------- */
 
 const ALLOWED = new Set([
   'image/jpeg',
@@ -149,8 +152,14 @@ export async function storeImage(
 ): Promise<StoredUpload> {
   ensureProviderIsValid()
 
+  /* ------------------------------------------------------------------------ */
+  /* Validate uploaded file                                                   */
+  /* ------------------------------------------------------------------------ */
+
   if (!ALLOWED.has(file.type)) {
-    throw new Error('فرمت تصویر مجاز نیست')
+    throw new Error(
+      `فرمت تصویر مجاز نیست: ${file.type || 'unknown'}`
+    )
   }
 
   if (file.size <= 0 || file.size > MAX_BYTES) {
@@ -159,13 +168,25 @@ export async function storeImage(
     )
   }
 
-  const input = Buffer.from(await file.arrayBuffer())
+  const input = Buffer.from(
+    await file.arrayBuffer()
+  )
+
+  if (!input.length) {
+    throw new Error('فایل تصویر خالی است')
+  }
 
   /* ------------------------------------------------------------------------ */
   /* Validate image                                                           */
   /* ------------------------------------------------------------------------ */
 
-  const meta = await sharp(input).metadata()
+  let meta
+
+  try {
+    meta = await sharp(input).metadata()
+  } catch {
+    throw new Error('فایل تصویر معتبر نیست')
+  }
 
   if (!meta.width || !meta.height) {
     throw new Error('فایل تصویر معتبر نیست')
@@ -175,12 +196,26 @@ export async function storeImage(
   /* Optimize image                                                           */
   /* ------------------------------------------------------------------------ */
 
-  const optimized = await sharp(input)
-    .rotate()
-    .webp({
-      quality: 82,
-    })
-    .toBuffer()
+  let optimized: Buffer
+
+  try {
+    optimized = await sharp(input)
+      .rotate()
+      .webp({
+        quality: 82,
+      })
+      .toBuffer()
+  } catch {
+    throw new Error(
+      'پردازش و تبدیل تصویر ناموفق بود'
+    )
+  }
+
+  if (!optimized.length) {
+    throw new Error(
+      'خروجی پردازش تصویر خالی است'
+    )
+  }
 
   /* ------------------------------------------------------------------------ */
   /* Storage key                                                              */
@@ -489,4 +524,3 @@ export async function readStoredFile(
     ),
   }
 }
-
