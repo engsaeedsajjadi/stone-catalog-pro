@@ -1562,39 +1562,74 @@ if (block.type === "hero") {
     </div>
   )
 }
-  /* --------------------------- IMAGE TEXT -------------------------------- */
+/* --------------------------- IMAGE TEXT -------------------------------- */
 
-  if (
-    block.type ===
-    "image-text"
-  ) {
-    const body = getString(
-      data.body
-    )
+if (
+  block.type ===
+  "image-text"
+) {
+  const body = getString(
+    data.body
+  )
 
-    const imageUrl = getImageUrl(
-      block.imageUrl
-    )
+  const images = getStringArray(
+    data.images
+  )
 
-    const uploaded: UploadedImage[] =
-      imageUrl
-        ? [
-            {
-              id: getString(
-                data.imageMediaId,
-                "image-text"
-              ),
-              url: imageUrl,
-              originalName:
-                "image-text",
-              mimeType: "image/*",
-              size: 0,
-            },
-          ]
+  const mediaIds = getStringArray(
+    data.imageMediaIds
+  )
+
+  /*
+   * Backward compatibility:
+   * اگر قبلاً فقط یک imageUrl ذخیره شده،
+   * همان تصویر را به عنوان تصویر اول در نظر می‌گیریم.
+   */
+  const oldImageUrl = getImageUrl(
+    block.imageUrl ??
+      data.imageUrl
+  )
+
+  const normalizedImages =
+    images.length > 0
+      ? images
+      : oldImageUrl
+        ? [oldImageUrl]
         : []
 
-    return (
-      <div className="space-y-3">
+  const normalizedMediaIds =
+    mediaIds.length > 0
+      ? mediaIds
+      : normalizedImages.map(
+          (_, index) =>
+            getString(
+              data.imageMediaId,
+              `image-text-${index}`
+            )
+        )
+
+  const uploaded: UploadedImage[] =
+    normalizedImages.map(
+      (url, index) => ({
+        id:
+          normalizedMediaIds[index] ??
+          `image-text-${index}`,
+
+        url,
+
+        originalName:
+          `image-text-${index + 1}`,
+
+        mimeType:
+          "image/*",
+
+        size: 0,
+      })
+    )
+
+  return (
+    <div className="space-y-4">
+      <div>
         <Label>
           متن
         </Label>
@@ -1609,34 +1644,107 @@ if (block.type === "hero") {
           }
           rows={6}
         />
+      </div>
 
+      <div>
         <Label>
-          تصویر
+          تصاویر
         </Label>
+
+        <p className="text-xs text-muted-foreground mt-1 mb-3">
+          می‌توانید حداکثر ۸ تصویر برای این بخش انتخاب کنید.
+        </p>
 
         <ImageUploader
           value={uploaded}
-          multiple={false}
+          multiple={true}
+          maxFiles={8}
+          sortable={true}
           onChange={(items) => {
-            const image =
-              items[0]
+            const limited =
+              items.slice(0, 8)
 
+            const nextImages =
+              limited
+                .map(
+                  (item) =>
+                    item.url
+                )
+                .filter(
+                  (
+                    url
+                  ): url is string =>
+                    typeof url ===
+                      "string" &&
+                    url.length > 0
+                )
+
+            const nextMediaIds =
+              limited
+                .map(
+                  (item) =>
+                    item.id
+                )
+                .filter(
+                  (
+                    id
+                  ): id is string =>
+                    typeof id ===
+                      "string" &&
+                    id.length > 0
+                )
+
+            /*
+             * New multi-image fields.
+             */
+            setData(
+              "images",
+              nextImages
+            )
+
+            setData(
+              "imageMediaIds",
+              nextMediaIds
+            )
+
+            /*
+             * Keep the old single-image
+             * field synchronized for
+             * backward compatibility.
+             */
             update({
               imageUrl:
-                image?.url ??
+                nextImages[0] ??
                 "",
+
               data: {
                 ...data,
+
+                images:
+                  nextImages,
+
+                imageMediaIds:
+                  nextMediaIds,
+
+                imageUrl:
+                  nextImages[0] ??
+                  "",
+
                 imageMediaId:
-                  image?.id ??
+                  nextMediaIds[0] ??
                   "",
               },
             })
           }}
         />
+
+        <div className="mt-2 text-sm text-muted-foreground">
+          {uploaded.length} از ۸ تصویر
+        </div>
       </div>
-    )
-  }
+    </div>
+  )
+} 
 
   /* ----------------------------- PRODUCTS -------------------------------- */
 
