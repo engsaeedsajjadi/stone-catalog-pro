@@ -1,211 +1,636 @@
-import 'server-only'
+import { db } from "@/lib/db";
 
-import { db } from '@/lib/db'
-import type { SiteConfig } from '@/lib/site-config-types'
+/* =========================================================
+ * Site Block
+ * ======================================================= */
 
-function parse(value: string | undefined) {
-  try {
-    return value ? JSON.parse(value) : undefined
-  } catch {
-    return undefined
+export type SiteBlockType =
+  | "hero"
+  | "richtext"
+  | "image-text"
+  | "products"
+  | "categories"
+  | "features"
+  | "stats"
+  | "gallery"
+  | "testimonials"
+  | "cta"
+  | "contact"
+  | "spacer"
+  | string;
+
+export type SiteBlockData = Record<string, any>;
+
+export type SiteBlock = {
+  id?: string;
+  type: SiteBlockType;
+
+  enabled?: boolean;
+  order: number;
+
+  title?: string;
+  subtitle?: string;
+  description?: string;
+
+  image?: string;
+  imageUrl?: string;
+
+  href?: string;
+  buttonText?: string;
+  content?: string;
+
+  /**
+   * محتوای اختصاصی هر نوع Block
+   */
+  data?: SiteBlockData;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Page
+ * ======================================================= */
+
+export type SitePage = {
+  slug: string;
+  title: string;
+  published?: boolean;
+  blocks: SiteBlock[];
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Navigation
+ * ======================================================= */
+
+export type SiteNavItem = {
+  id?: string;
+  label: string;
+  href: string;
+  enabled: boolean;
+  order: number;
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Brand
+ * ======================================================= */
+
+export type SiteBrand = {
+  nameFa: string;
+  nameEn: string;
+
+  taglineFa?: string;
+  taglineEn?: string;
+
+  logo?: string;
+  favicon?: string;
+
+  logoUrl?: string;
+  logoMediaId?: string;
+
+  description?: string;
+
+  phone?: string;
+  email?: string;
+  whatsapp?: string;
+
+  city?: string;
+  country?: string;
+  address?: string;
+
+  workingHours?: string;
+
+  instagram?: string;
+  telegram?: string;
+  youtube?: string;
+  linkedin?: string;
+  facebook?: string;
+
+  mapUrl?: string;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * SEO
+ * ======================================================= */
+
+export type SiteSeo = {
+  title: string;
+  description: string;
+
+  keywords?: string;
+
+  ogImage?: string;
+
+  canonical?: string;
+  twitterHandle?: string;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Contact
+ * ======================================================= */
+
+export type SiteContact = {
+  phone?: string;
+  email?: string;
+  whatsapp?: string;
+
+  country?: string;
+  city?: string;
+  address?: string;
+
+  workingHours?: string;
+
+  mapUrl?: string;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Social
+ * ======================================================= */
+
+export type SiteSocial = {
+  instagram?: string;
+  telegram?: string;
+  whatsapp?: string;
+  linkedin?: string;
+  facebook?: string;
+  youtube?: string;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Appearance
+ * ======================================================= */
+
+export type SiteAppearance = {
+  primaryColor?: string;
+  secondaryColor?: string;
+  fontFamily?: string;
+  darkMode?: boolean;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Theme
+ * ======================================================= */
+
+export type SiteTheme = {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+
+  background?: string;
+  foreground?: string;
+  muted?: string;
+
+  radius?: string;
+
+  font?: string;
+
+  cardStyle?: "soft" | "flat" | "bordered" | string;
+
+  buttonStyle?: "rounded" | "pill" | "square" | string;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Footer
+ * ======================================================= */
+
+export type SiteFooter = {
+  text?: string;
+  copyright?: string;
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Main Site Config
+ * ======================================================= */
+
+export type SiteConfig = {
+  brand: SiteBrand;
+
+  seo: SiteSeo;
+
+  contact: SiteContact;
+
+  social: SiteSocial;
+
+  appearance: SiteAppearance;
+
+  theme: SiteTheme;
+
+  nav: SiteNavItem[];
+
+  pages: Record<string, SitePage>;
+
+  footer: SiteFooter;
+
+  blocks: SiteBlock[];
+
+  [key: string]: any;
+};
+
+/* =========================================================
+ * Default Pages
+ * ======================================================= */
+
+const DEFAULT_PAGE = (
+  slug: string,
+  title: string
+): SitePage => ({
+  slug,
+  title,
+  published: true,
+  blocks: [],
+});
+
+/* =========================================================
+ * Default Site Config
+ * ======================================================= */
+
+export const DEFAULT_SITE_CONFIG: SiteConfig = {
+  brand: {
+    nameFa: "کاتالوگ سنگ",
+    nameEn: "Stone Catalog",
+
+    taglineFa: "",
+    taglineEn: "",
+
+    logo: "",
+    favicon: "",
+
+    logoUrl: "",
+    logoMediaId: "",
+
+    description: "کاتالوگ دیجیتال محصولات سنگ",
+
+    phone: "",
+    email: "",
+    whatsapp: "",
+
+    city: "",
+    country: "",
+    address: "",
+
+    workingHours: "",
+
+    instagram: "",
+    telegram: "",
+    youtube: "",
+    linkedin: "",
+    facebook: "",
+
+    mapUrl: "",
+  },
+
+  seo: {
+    title: "کاتالوگ دیجیتال سنگ",
+    description: "مشاهده و بررسی محصولات سنگ",
+
+    keywords: "",
+
+    ogImage: "",
+
+    canonical: "",
+    twitterHandle: "",
+  },
+
+  contact: {
+    phone: "",
+    email: "",
+    whatsapp: "",
+
+    country: "",
+    city: "",
+    address: "",
+
+    workingHours: "",
+
+    mapUrl: "",
+  },
+
+  social: {
+    instagram: "",
+    telegram: "",
+    whatsapp: "",
+    linkedin: "",
+    facebook: "",
+    youtube: "",
+  },
+
+  appearance: {
+    primaryColor: "#111827",
+    secondaryColor: "#6b7280",
+    fontFamily: "Vazirmatn",
+    darkMode: false,
+  },
+
+  theme: {
+    primary: "#111827",
+    secondary: "#374151",
+    accent: "#d4a72c",
+
+    background: "#ffffff",
+    foreground: "#111827",
+    muted: "#f3f4f6",
+
+    radius: "0.75rem",
+
+    font: "Vazirmatn",
+
+    cardStyle: "soft",
+    buttonStyle: "rounded",
+  },
+
+  nav: [
+    {
+      id: "nav-home",
+      label: "صفحه اصلی",
+      href: "/",
+      enabled: true,
+      order: 0,
+    },
+    {
+      id: "nav-catalog",
+      label: "کاتالوگ سنگ",
+      href: "/catalog",
+      enabled: true,
+      order: 1,
+    },
+    {
+      id: "nav-about",
+      label: "درباره ما",
+      href: "/about",
+      enabled: true,
+      order: 2,
+    },
+    {
+      id: "nav-contact",
+      label: "تماس با ما",
+      href: "/contact",
+      enabled: true,
+      order: 3,
+    },
+  ],
+
+  pages: {
+    home: DEFAULT_PAGE("home", "صفحه اصلی"),
+    about: DEFAULT_PAGE("about", "درباره ما"),
+    contact: DEFAULT_PAGE("contact", "تماس با ما"),
+  },
+
+  footer: {
+    text: "",
+    copyright: "",
+  },
+
+  blocks: [],
+};
+
+/* =========================================================
+ * Deep Merge
+ * ======================================================= */
+
+function mergeConfig(
+  defaults: SiteConfig,
+  saved: Partial<SiteConfig>
+): SiteConfig {
+  const savedPages =
+    saved.pages && typeof saved.pages === "object"
+      ? saved.pages
+      : {};
+
+  const mergedPages: Record<string, SitePage> = {
+    ...defaults.pages,
+  };
+
+  for (const [slug, page] of Object.entries(savedPages)) {
+    if (!page || typeof page !== "object") {
+      continue;
+    }
+
+    const defaultPage =
+      defaults.pages[slug] ||
+      DEFAULT_PAGE(
+        slug,
+        (page as any).title || slug
+      );
+
+    mergedPages[slug] = {
+      ...defaultPage,
+      ...(page as SitePage),
+
+      blocks: Array.isArray((page as SitePage).blocks)
+        ? (page as SitePage).blocks
+        : defaultPage.blocks,
+    };
   }
+
+  return {
+    ...defaults,
+    ...saved,
+
+    brand: {
+      ...defaults.brand,
+      ...(saved.brand || {}),
+    },
+
+    seo: {
+      ...defaults.seo,
+      ...(saved.seo || {}),
+    },
+
+    contact: {
+      ...defaults.contact,
+      ...(saved.contact || {}),
+    },
+
+    social: {
+      ...defaults.social,
+      ...(saved.social || {}),
+    },
+
+    appearance: {
+      ...defaults.appearance,
+      ...(saved.appearance || {}),
+    },
+
+    theme: {
+      ...defaults.theme,
+      ...(saved.theme || {}),
+    },
+
+    footer: {
+      ...defaults.footer,
+      ...(saved.footer || {}),
+    },
+
+    nav: Array.isArray(saved.nav)
+      ? saved.nav
+      : defaults.nav,
+
+    pages: mergedPages,
+
+    blocks: Array.isArray(saved.blocks)
+      ? saved.blocks
+      : defaults.blocks,
+  };
 }
+
+/* =========================================================
+ * Read Site Config
+ * ======================================================= */
 
 export async function getSiteConfig(): Promise<SiteConfig> {
-  const [settings, contents] = await Promise.all([
-    db.setting.findMany({
-      where: {
-        key: {
-          startsWith: 'site.',
-        },
-      },
-    }),
+  try {
+    const client = db as any;
 
-    db.content.findMany({
-      where: {
-        section: {
-          startsWith: 'site.',
-        },
-      },
-      orderBy: [
-        {
-          section: 'asc',
-        },
-        {
-          order: 'asc',
-        },
-      ],
-    }),
-  ])
-
-  const cfg: SiteConfig = {
-    brand: {},
-    theme: {
-      primary: '#1f2937',
-      secondary: '#111827',
-      accent: '#d4af37',
-      background: '#ffffff',
-      foreground: '#111827',
-      muted: '#f3f4f6',
-      radius: '16px',
-      font: 'system-ui',
-      cardStyle: 'soft',
-      buttonStyle: 'rounded',
-    },
-    nav: [],
-    footer: {
-      links: [],
-    },
-    seo: {},
-    pages: {},
-    features: {},
-  }
-
-  for (const s of settings) {
-    const v = parse(s.value) ?? s.value
-
-    if (s.key === 'site.brand') {
-      cfg.brand = {
-        ...cfg.brand,
-        ...(v as object),
-      }
-    } else if (s.key === 'site.theme') {
-      cfg.theme = {
-        ...cfg.theme,
-        ...(v as object),
-      }
-    } else if (s.key === 'site.nav') {
-      cfg.nav = Array.isArray(v) ? v : []
-    } else if (s.key === 'site.footer') {
-      cfg.footer = {
-        ...cfg.footer,
-        ...(v as object),
-      }
-    } else if (s.key === 'site.seo') {
-      cfg.seo = {
-        ...cfg.seo,
-        ...(v as object),
-      }
-    } else if (s.key === 'site.features') {
-      cfg.features = Array.isArray(v)
-        ? {}
-        : {
-            ...cfg.features,
-            ...(v as object),
-          }
+    if (!client.siteConfig) {
+      return DEFAULT_SITE_CONFIG;
     }
-  }
 
-  for (const c of contents) {
-    if (c.section.startsWith('site.page.')) {
-      const slug = c.section.replace('site.page.', '')
+    const record = await client.siteConfig.findFirst();
 
-      const existing =
-        cfg.pages[slug] ?? {
-          slug,
-          title: slug,
-          published: true,
-          blocks: [],
-        }
-
-      const parsed = parse(c.value) ?? {}
-
-      existing.blocks.push({
-        id: c.id,
-        type: c.type.toLowerCase() as SiteConfig['pages'][string]['blocks'][number]['type'],
-        enabled: Boolean(parsed.enabled ?? true),
-        title: parsed.title,
-        subtitle: parsed.subtitle,
-        imageUrl: parsed.imageUrl,
-        data: parsed.data ?? {},
-        order: c.order,
-      })
-
-      cfg.pages[slug] = existing
+    if (!record) {
+      return DEFAULT_SITE_CONFIG;
     }
-  }
 
-  for (const page of Object.values(cfg.pages)) {
-    page.blocks.sort((a, b) => a.order - b.order)
-  }
+    let saved: Partial<SiteConfig> = {};
 
-  return cfg
+    if (typeof record.config === "string") {
+      try {
+        saved = JSON.parse(record.config);
+      } catch {
+        saved = {};
+      }
+    } else if (
+      record.config &&
+      typeof record.config === "object"
+    ) {
+      saved = record.config as Partial<SiteConfig>;
+    } else {
+      saved = {
+        brand: record.brand,
+        seo: record.seo,
+        contact: record.contact,
+        social: record.social,
+        appearance: record.appearance,
+        theme: record.theme,
+        nav: record.nav,
+        pages: record.pages,
+        blocks: record.blocks,
+        footer: record.footer,
+      };
+    }
+
+    return mergeConfig(
+      DEFAULT_SITE_CONFIG,
+      saved
+    );
+  } catch (error) {
+    console.error(
+      "Failed to load site configuration:",
+      error
+    );
+
+    return DEFAULT_SITE_CONFIG;
+  }
 }
 
-export async function saveSiteConfig(config: SiteConfig) {
-  const writes = [
-    ['site.brand', config.brand],
-    ['site.theme', config.theme],
-    ['site.nav', config.nav],
-    ['site.footer', config.footer],
-    ['site.seo', config.seo],
-    ['site.features', config.features],
-  ].map(([key, value]) =>
-    db.setting.upsert({
-      where: {
-        key: key as string,
-      },
-      create: {
-        key: key as string,
-        value: JSON.stringify(value),
-        type: 'JSON',
-        category: 'GENERAL',
-      },
-      update: {
-        value: JSON.stringify(value),
-        type: 'JSON',
-      },
-    }),
-  )
+/* =========================================================
+ * Save Site Config
+ * ======================================================= */
 
-  await db.$transaction(writes)
+export async function saveSiteConfig(
+  config: SiteConfig
+): Promise<SiteConfig> {
+  const client = db as any;
 
-  await db.content.deleteMany({
-    where: {
-      section: {
-        startsWith: 'site.page.',
-      },
-    },
-  })
+  if (!client.siteConfig) {
+    throw new Error(
+      "Prisma model SiteConfig وجود ندارد. مدل SiteConfig را در schema.prisma بررسی کنید."
+    );
+  }
 
-  for (const page of Object.values(config.pages)) {
-    for (const block of page.blocks) {
-      await db.content.upsert({
+  const normalized = mergeConfig(
+    DEFAULT_SITE_CONFIG,
+    config
+  );
+
+  const existing =
+    await client.siteConfig.findFirst();
+
+  if (existing) {
+    const updated =
+      await client.siteConfig.update({
         where: {
-          section_key: {
-            section: `site.page.${page.slug}`,
-            key: block.id,
-          },
+          id: existing.id,
         },
-        create: {
-          section: `site.page.${page.slug}`,
-          key: block.id,
-          type: block.type.toUpperCase(),
-          value: JSON.stringify({
-            enabled: block.enabled,
-            title: block.title,
-            subtitle: block.subtitle,
-            imageUrl: block.imageUrl,
-            data: block.data,
-          }),
-          label: block.title || block.type,
-          order: block.order,
+
+        data: {
+          config: normalized,
         },
-        update: {
-          type: block.type.toUpperCase(),
-          value: JSON.stringify({
-            enabled: block.enabled,
-            title: block.title,
-            subtitle: block.subtitle,
-            imageUrl: block.imageUrl,
-            data: block.data,
-          }),
-          label: block.title || block.type,
-          order: block.order,
-        },
-      })
+      });
+
+    return extractConfigFromRecord(
+      updated,
+      normalized
+    );
+  }
+
+  const created =
+    await client.siteConfig.create({
+      data: {
+        config: normalized,
+      },
+    });
+
+  return extractConfigFromRecord(
+    created,
+    normalized
+  );
+}
+
+/* =========================================================
+ * Extract Config
+ * ======================================================= */
+
+function extractConfigFromRecord(
+  record: any,
+  fallback: SiteConfig
+): SiteConfig {
+  if (record?.config) {
+    if (typeof record.config === "string") {
+      try {
+        return mergeConfig(
+          DEFAULT_SITE_CONFIG,
+          JSON.parse(record.config)
+        );
+      } catch {
+        return fallback;
+      }
+    }
+
+    if (
+      typeof record.config === "object"
+    ) {
+      return mergeConfig(
+        DEFAULT_SITE_CONFIG,
+        record.config as Partial<SiteConfig>
+      );
     }
   }
 
-  return config
+  return fallback;
 }
