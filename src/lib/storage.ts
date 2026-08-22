@@ -1,8 +1,19 @@
-import { mkdir, writeFile, unlink, readFile } from 'fs/promises'
+import {
+  mkdir,
+  writeFile,
+  unlink,
+  readFile,
+} from 'fs/promises'
 import path from 'path'
 import crypto from 'crypto'
 import sharp from 'sharp'
-import { put, del, head } from '@vercel/blob'
+
+import {
+  put,
+  del,
+  get,
+} from '@vercel/blob'
+
 import {
   GetObjectCommand,
   PutObjectCommand,
@@ -34,14 +45,17 @@ const MAX_BYTES =
  *
  * blob  -> Vercel Blob
  * s3    -> S3 / Cloudflare R2 / compatible storage
- * local -> Local filesystem (development / Docker)
+ * local -> Local filesystem
  */
 const provider = (() => {
   const configured =
     process.env.STORAGE_PROVIDER?.toLowerCase()
 
-  // Vercel filesystem is read-only.
-  // Never use local storage on Vercel.
+  /*
+   * Vercel filesystem is not persistent.
+   *
+   * Never use local storage on Vercel.
+   */
   if (process.env.VERCEL === '1') {
     if (configured === 's3') {
       return 's3'
@@ -52,9 +66,11 @@ const provider = (() => {
 
   return (
     configured ||
-    (process.env.BLOB_READ_WRITE_TOKEN
-      ? 'blob'
-      : 'local')
+    (
+      process.env.BLOB_READ_WRITE_TOKEN
+        ? 'blob'
+        : 'local'
+    )
   )
 })()
 
@@ -298,16 +314,11 @@ export async function storeImage(
     `${year}/${crypto.randomUUID()}.webp`
 
   /*
-   * Important:
+   * Application-level media URL.
    *
-   * For private Vercel Blob the blob URL itself
-   * must not be used as the public application URL.
-   *
-   * The application serves the file through:
-   *
-   * /api/media/[...key]
+   * We intentionally do not expose the private Blob URL.
    */
-  let url =
+  const url =
     `/api/media/${key}`
 
   /* ======================================================================== */
@@ -328,10 +339,6 @@ export async function storeImage(
       key,
       optimized,
       {
-        /*
-         * The Vercel Blob Store is configured
-         * with PRIVATE access.
-         */
         access: 'private',
 
         token,
@@ -347,16 +354,9 @@ export async function storeImage(
       }
     )
 
-    /*
-     * Do NOT use blob.url here.
-     *
-     * The database stores our internal media URL.
-     */
-    url =
-      `/api/media/${key}`
-
     return {
-      storageKey: key,
+      storageKey:
+        key,
 
       url,
 
@@ -410,19 +410,20 @@ export async function storeImage(
       })
     )
 
-    url =
+    const publicUrl =
       process.env.S3_PUBLIC_BASE_URL
         ? `${process.env.S3_PUBLIC_BASE_URL.replace(
             /\/$/,
             ''
           )}/${key}`
-        : `/api/media/${key}`
+        : url
 
     return {
       storageKey:
         key,
 
-      url,
+      url:
+        publicUrl,
 
       originalName:
         file.name,
@@ -602,41 +603,50 @@ export async function readStoredFile(
       )
     }
 
-    const blob =
-      await head(
+    /*
+     * IMPORTANT:
+     *
+     * Do not:
+     *
+     *   head() -> blob.url -> fetch(blob.url)
+     *
+     * for a private Blob.
+     *
+     * Use the authenticated Blob SDK get() operation instead.
+     */
+    const result =
+      await get(
         storageKey,
         {
+          access: 'private',
           token,
         }
       )
 
-    if (!blob) {
+    if (!result) {
       throw new Error(
         'File not found'
       )
     }
 
-    /*
-     * The Blob is private, therefore we retrieve it
-     * server-side using its authenticated URL.
-     */
-    const response =
-      await fetch(
-        blob.url,
-        {
-          cache:
-            'no-store',
-        }
-      )
-
-    if (!response.ok) {
+    if (
+      result.statusCode !== 200
+    ) {
       throw new Error(
-        `Blob download failed: ${response.status}`
+        `Blob download failed: ${result.statusCode}`
+      )
+    }
+
+    if (!result.stream) {
+      throw new Error(
+        'Blob stream is unavailable'
       )
     }
 
     const arrayBuffer =
-      await response.arrayBuffer()
+      await new Response(
+        result.stream
+      ).arrayBuffer()
 
     return {
       data:
@@ -645,11 +655,8 @@ export async function readStoredFile(
         ),
 
       contentType:
-        blob.contentType ||
-        response.headers.get(
-          'content-type'
-        ) ||
-        undefined,
+        result.blob.contentType ||
+        'application/octet-stream',
     }
   }
 
@@ -689,7 +696,9 @@ export async function readStoredFile(
 
     return {
       data:
-        Buffer.from(bytes),
+        Buffer.from(
+          bytes
+        ),
 
       contentType:
         out.ContentType,
@@ -710,5 +719,8 @@ export async function readStoredFile(
       await readFile(
         target
       ),
+
+    contentType:
+      'application/octet-stream',
   }
 }
