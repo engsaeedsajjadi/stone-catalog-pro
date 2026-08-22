@@ -64,3 +64,6 @@ backups/
 
 # Local database backup
 stone_catalog_backup.sql
+
+# Local database dump
+*.dump
