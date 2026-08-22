@@ -61,3 +61,6 @@ backups/
 
 # Local database backups
 *.sql
+
+# Local database backup
+stone_catalog_backup.sql
