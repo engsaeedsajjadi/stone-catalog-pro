@@ -16,6 +16,7 @@ const ALLOWED = new Set([
   'image/png',
   'image/webp',
   'image/avif',
+  'image/svg+xml',
 ])
 
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 15)
