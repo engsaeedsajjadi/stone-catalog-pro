@@ -53,3 +53,5 @@ server.log
 # Skills directory
 /skills//storage/uploads/*
 !/storage/uploads/.gitkeep
+
+backups/
