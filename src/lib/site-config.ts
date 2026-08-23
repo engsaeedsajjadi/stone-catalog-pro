@@ -501,7 +501,9 @@ export async function getSiteConfig(): Promise<SiteConfig> {
       update: (args: { where: { id: string }; data: { config: unknown } }) => Promise<{ id: string; config: unknown }>
     }
 
-    const siteConfigModel = (db as Record<string, unknown>).siteConfig as SiteConfigDelegate | undefined
+    const siteConfigModel = ('siteConfig' in db)
+      ? (db as unknown as Record<string, SiteConfigDelegate>).siteConfig
+      : undefined
 
     if (!siteConfigModel) {
       return DEFAULT_SITE_CONFIG
@@ -557,7 +559,9 @@ export async function saveSiteConfig(
     update: (args: { where: { id: string }; data: { config: unknown } }) => Promise<{ id: string; config: unknown }>
   }
 
-  const siteConfigModel = (db as Record<string, unknown>).siteConfig as SiteConfigDelegate | undefined
+  const siteConfigModel = ('siteConfig' in db)
+    ? (db as unknown as Record<string, SiteConfigDelegate>).siteConfig
+    : undefined
 
   if (!siteConfigModel) {
     throw new Error(
