@@ -403,136 +403,132 @@ function Block({
         ]
       : []
 
-  /* ------------------------------------------------------------------------ */
-  /* HERO                                                                     */
-  /* ------------------------------------------------------------------------ */
+if (block.type === "hero") {
+  const configuredImages = getValidImages(
+    d.images
+  )
 
-  if (
-    block.type ===
-    "hero"
-  ) {
-    const configuredImages =
-      getValidImages(
-        d.images
-      )
+  const fallbackImage =
+    typeof d.backgroundImage === "string"
+      ? d.backgroundImage
+      : ""
 
-    const fallbackImage =
-      typeof d.backgroundImage ===
-      "string"
-        ? d.backgroundImage
-        : ""
+  const images =
+    configuredImages.length > 0
+      ? configuredImages.slice(0, 8)
+      : fallbackImage
+        ? [fallbackImage]
+        : []
 
-    /*
-     * Backward compatibility:
-     *
-     * New data:
-     *   d.images[]
-     *
-     * Old data:
-     *   d.backgroundImage
-     */
-    const images =
-      configuredImages.length > 0
-        ? configuredImages.slice(
-            0,
-            8
-          )
-        : fallbackImage
-          ? [fallbackImage]
-          : []
+  return (
+    <section className="relative overflow-hidden py-10 md:py-14">
+      <div className="container mx-auto px-4">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-8 lg:gap-12 items-center">
 
-    return (
-      <section className="relative overflow-hidden text-white">
-        {images.length > 0 ? (
-          <ImageCarousel
-            images={images}
-            interval={5000}
-            overlay={false}
-            className="min-h-[620px] md:min-h-[700px]"
-          />
-        ) : (
-          <div
-            className="min-h-[620px] md:min-h-[700px]"
-            style={{
-              background:
-                "linear-gradient(135deg,var(--site-secondary),var(--site-primary))",
-            }}
-          />
-        )}
-
-        <div className="absolute inset-0 z-20 bg-gradient-to-b from-black/45 via-black/30 to-black/60" />
-
-        <div className="absolute inset-0 z-30 flex items-center">
-          <div className="container mx-auto px-4">
-            <div className="max-w-4xl">
-              <Badge
-                className="mb-5"
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb,var(--site-accent) 25%,transparent)",
-                  color:
-                    "var(--site-accent)",
-                }}
+          {/* تصاویر آلبومی */}
+          <div className="order-1 lg:order-2">
+            {images.length > 0 ? (
+              <div
+                className={`grid gap-3 ${
+                  images.length === 1
+                    ? "grid-cols-1"
+                    : images.length === 2
+                      ? "grid-cols-2"
+                      : images.length <= 4
+                        ? "grid-cols-2"
+                        : "grid-cols-2 md:grid-cols-4"
+                }`}
               >
-                {block.subtitle ||
-                  " "}
-              </Badge>
+                {images.map(
+                  (image, index) => (
+                    <div
+                      key={`${image}-${index}`}
+                      className={`group relative overflow-hidden rounded-2xl bg-muted ${
+                        images.length >= 5 &&
+                        index === 0
+                          ? "md:col-span-2 md:row-span-2"
+                          : ""
+                      }`}
+                    >
+                      <img
+                        src={image}
+                        alt={`${block.title || "سنگ"} ${index + 1}`}
+                        className="w-full h-full min-h-[180px] md:min-h-[220px] object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
 
-              <h1 className="text-4xl md:text-6xl font-black leading-tight mb-5">
-                {block.title}
-              </h1>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
-              <p className="text-lg md:text-xl text-white/80 max-w-3xl leading-relaxed">
-                {(
-                  d.body as string
-                ) || ""}
-              </p>
+                      <div className="absolute bottom-3 right-3 rounded-full bg-black/55 px-3 py-1 text-xs text-white backdrop-blur-sm">
+                        {index + 1}
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            ) : (
+              <div className="min-h-[420px] rounded-3xl bg-gradient-to-br from-slate-800 to-slate-600" />
+            )}
+          </div>
 
-              {d.showSearch !==
-                false && (
-                <form
-                  onSubmit={search}
-                  className="mt-8 max-w-2xl rounded-2xl bg-white/10 backdrop-blur-md p-2 flex gap-2"
+          {/* متن Hero */}
+          <div className="order-2 lg:order-1">
+            <Badge
+              className="mb-5"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb,var(--site-accent) 20%,transparent)",
+                color:
+                  "var(--site-accent)",
+              }}
+            >
+              {block.subtitle || " "}
+            </Badge>
+
+            <h1 className="text-4xl md:text-5xl xl:text-6xl font-black leading-tight mb-5 text-foreground">
+              {block.title}
+            </h1>
+
+            <p className="text-lg md:text-xl leading-relaxed text-muted-foreground max-w-2xl">
+              {(d.body as string) || ""}
+            </p>
+
+            {d.showSearch !== false && (
+              <form
+                onSubmit={search}
+                className="mt-8 max-w-2xl rounded-2xl bg-background border shadow-sm p-2 flex gap-2"
+              >
+                <Input
+                  value={q}
+                  onChange={(event) =>
+                    setQ(event.target.value)
+                  }
+                  placeholder={t(
+                    "search.placeholder"
+                  )}
+                  className="border-0 h-12"
+                />
+
+                <Button
+                  type="submit"
+                  className="h-12 px-6 shrink-0"
+                  style={{
+                    background:
+                      "var(--site-accent)",
+                    color:
+                      "var(--site-secondary)",
+                  }}
                 >
-                  <Input
-                    value={q}
-                    onChange={(event) =>
-                      setQ(
-                        event
-                          .target
-                          .value
-                      )
-                    }
-                    placeholder={t(
-                      "search.placeholder"
-                    )}
-                    className="bg-white text-slate-900 border-0 h-12"
-                  />
-
-                  <Button
-                    type="submit"
-                    className="h-12 px-6"
-                    style={{
-                      background:
-                        "var(--site-accent)",
-                      color:
-                        "var(--site-secondary)",
-                    }}
-                  >
-                    <Search className="w-5 h-5 ml-2" />
-                    {t(
-                      "common.search"
-                    )}
-                  </Button>
-                </form>
-              )}
-            </div>
+                  <Search className="w-5 h-5 ml-2" />
+                  {t("common.search")}
+                </Button>
+              </form>
+            )}
           </div>
         </div>
-      </section>
-    )
-  }
-
+      </div>
+    </section>
+  )
+}  
   /* ------------------------------------------------------------------------ */
   /* RICHTEXT                                                                 */
   /* ------------------------------------------------------------------------ */
