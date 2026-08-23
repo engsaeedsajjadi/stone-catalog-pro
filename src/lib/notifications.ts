@@ -1,1 +1,31 @@
-export async function sendNotification(channel:'EMAIL'|'SMS'|'WHATSAPP',target:string,title:string,message:string){const base=process.env.NOTIFICATION_WEBHOOK_URL;const token=process.env.NOTIFICATION_WEBHOOK_TOKEN;if(!base||!token)throw new Error('Notification provider is not configured');const r=await fetch(base,{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},body:JSON.stringify({channel,target,title,message})});if(!r.ok)throw new Error(`Notification provider returned ${r.status}`);return await r.text()}
+/**
+ * ارسال نوتیفیکیشن از طریق Webhook خارجی
+ */
+export async function sendNotification(
+  channel: 'EMAIL' | 'SMS' | 'WHATSAPP',
+  target: string,
+  title: string,
+  message: string
+): Promise<string> {
+  const base = process.env.NOTIFICATION_WEBHOOK_URL
+  const token = process.env.NOTIFICATION_WEBHOOK_TOKEN
+
+  if (!base || !token) {
+    throw new Error('Notification provider is not configured')
+  }
+
+  const response = await fetch(base, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ channel, target, title, message }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Notification provider returned ${response.status}`)
+  }
+
+  return await response.text()
+}

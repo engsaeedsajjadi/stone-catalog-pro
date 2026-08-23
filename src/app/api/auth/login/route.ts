@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     const email = String(body.email || '').trim().toLowerCase()
     const password = String(body.password || '')
     if (!email || !password) return NextResponse.json({ success: false, error: 'ایمیل و رمز عبور الزامی است' }, { status: 400 })
+    if (password.length > 200) return NextResponse.json({ success: false, error: 'رمز عبور بسیار طولانی است' }, { status: 400 })
     const user = await db.user.findUnique({ where: { email } })
     if (!user || !verifyPassword(password, user.password)) return NextResponse.json({ success: false, error: 'ایمیل یا رمز عبور نادرست است' }, { status: 401 })
     if (!user.isActive) return NextResponse.json({ success: false, error: 'حساب کاربری غیرفعال است' }, { status: 403 })

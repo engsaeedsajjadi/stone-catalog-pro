@@ -494,13 +494,20 @@ function mergeConfig(
 
 export async function getSiteConfig(): Promise<SiteConfig> {
   try {
-    const client = db as any;
-
-    if (!client.siteConfig) {
-      return DEFAULT_SITE_CONFIG;
+    // استفاده ایمن از SiteConfig — مدل باید در schema.prisma وجود داشته باشد
+    type SiteConfigDelegate = {
+      findFirst: () => Promise<{ id: string; config: unknown } | null>
+      create: (args: { data: { config: unknown } }) => Promise<{ id: string; config: unknown }>
+      update: (args: { where: { id: string }; data: { config: unknown } }) => Promise<{ id: string; config: unknown }>
     }
 
-    const record = await client.siteConfig.findFirst();
+    const siteConfigModel = (db as Record<string, unknown>).siteConfig as SiteConfigDelegate | undefined
+
+    if (!siteConfigModel) {
+      return DEFAULT_SITE_CONFIG
+    }
+
+    const record = await siteConfigModel.findFirst()
 
     if (!record) {
       return DEFAULT_SITE_CONFIG;
@@ -520,18 +527,7 @@ export async function getSiteConfig(): Promise<SiteConfig> {
     ) {
       saved = record.config as Partial<SiteConfig>;
     } else {
-      saved = {
-        brand: record.brand,
-        seo: record.seo,
-        contact: record.contact,
-        social: record.social,
-        appearance: record.appearance,
-        theme: record.theme,
-        nav: record.nav,
-        pages: record.pages,
-        blocks: record.blocks,
-        footer: record.footer,
-      };
+      saved = {}
     }
 
     return mergeConfig(
@@ -555,12 +551,18 @@ export async function getSiteConfig(): Promise<SiteConfig> {
 export async function saveSiteConfig(
   config: SiteConfig
 ): Promise<SiteConfig> {
-  const client = db as any;
+  type SiteConfigDelegate = {
+    findFirst: () => Promise<{ id: string; config: unknown } | null>
+    create: (args: { data: { config: unknown } }) => Promise<{ id: string; config: unknown }>
+    update: (args: { where: { id: string }; data: { config: unknown } }) => Promise<{ id: string; config: unknown }>
+  }
 
-  if (!client.siteConfig) {
+  const siteConfigModel = (db as Record<string, unknown>).siteConfig as SiteConfigDelegate | undefined
+
+  if (!siteConfigModel) {
     throw new Error(
-      "Prisma model SiteConfig وجود ندارد. مدل SiteConfig را در schema.prisma بررسی کنید."
-    );
+      "مدل SiteConfig در Prisma وجود ندارد. مدل SiteConfig را در schema.prisma بررسی کنید."
+    )
   }
 
   const normalized = mergeConfig(
@@ -569,11 +571,11 @@ export async function saveSiteConfig(
   );
 
   const existing =
-    await client.siteConfig.findFirst();
+    await siteConfigModel.findFirst();
 
   if (existing) {
     const updated =
-      await client.siteConfig.update({
+      await siteConfigModel.update({
         where: {
           id: existing.id,
         },
@@ -590,7 +592,7 @@ export async function saveSiteConfig(
   }
 
   const created =
-    await client.siteConfig.create({
+    await siteConfigModel.create({
       data: {
         config: normalized,
       },

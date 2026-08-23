@@ -8,6 +8,7 @@ import {
 
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
 
 const itemSchema = z.object({
   stoneId: z.string().min(1),
@@ -45,6 +46,16 @@ export async function POST(
   req: NextRequest
 ) {
   try {
+    // محدودیت نرخ: ۱۰ سفارش در دقیقه برای هر IP
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const limited = await rateLimit(`checkout:${ip}`, 10, 60)
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
+        { status: 429 }
+      )
+    }
+
     const body = schema.parse(
       await req.json()
     );

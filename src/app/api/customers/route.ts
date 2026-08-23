@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,16 +13,15 @@ export async function GET(req: NextRequest) {
     const customerType = searchParams.get('type')
     const q = searchParams.get('q')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {}
+    const where: Prisma.CustomerWhereInput = {}
     if (status) where.status = status
     if (customerType) where.customerType = customerType
     if (q) {
       where.OR = [
-        { name: { contains: q } },
-        { companyName: { contains: q } },
+        { name: { contains: q, mode: 'insensitive' } },
+        { companyName: { contains: q, mode: 'insensitive' } },
         { phone: { contains: q } },
-        { email: { contains: q } },
+        { email: { contains: q, mode: 'insensitive' } },
       ]
     }
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: customers })
   } catch (e) {
     console.error('GET /api/customers error:', e)
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
   }
 }
 
@@ -76,6 +76,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: cust })
   } catch (e) {
     console.error('POST /api/customers error:', e)
-    return NextResponse.json({ success: false, error: 'Create failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'ایجاد مشتری ناموفق بود' }, { status: 500 })
   }
 }

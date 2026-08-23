@@ -1,1 +1,84 @@
-export const runtime="nodejs";export const dynamic="force-dynamic";import {NextRequest,NextResponse} from 'next/server';import {db} from '@/lib/db';import {verifyZarinpalPayment} from '@/lib/payments';export async function GET(req:NextRequest){try{const u=new URL(req.url);const authority=u.searchParams.get('Authority');const status=u.searchParams.get('Status');if(!authority)return NextResponse.json({success:false,error:'Authority missing'},{status:400});const payment=await db.payment.findFirst({where:{gateway:'ZARINPAL',gatewayRefId:authority}});if(!payment)return NextResponse.json({success:false,error:'Payment not found'},{status:404});if(status!=='OK')return NextResponse.json({success:false,error:'Payment cancelled'});const result=await verifyZarinpalPayment(Math.round(payment.amount),authority);await db.payment.update({where:{id:payment.id},data:{status:'PAID',gatewayTrackId:String(result.ref_id||''),paidAt:new Date(),callbackData:u.toString()}});await db.order.update({where:{id:payment.orderId},data:{paymentStatus:'PAID'}});return NextResponse.redirect(new URL(`/payment/success?orderId=${encodeURIComponent(payment.orderId)}`,req.url))}catch(e){return NextResponse.json({success:false,error:e instanceof Error?e.message:'Verification failed'},{status:400})}}
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { verifyZarinpalPayment } from '@/lib/payments'
+
+/**
+ * GET /api/payments/zarinpal/callback — کال‌بک زرین‌پال
+ */
+export async function GET(req: NextRequest) {
+  try {
+    const u = new URL(req.url)
+    const authority = u.searchParams.get('Authority')
+    const status = u.searchParams.get('Status')
+
+    if (!authority) {
+      return NextResponse.json(
+        { success: false, error: 'Authority یافت نشد' },
+        { status: 400 }
+      )
+    }
+
+    const payment = await db.payment.findFirst({
+      where: { gateway: 'ZARINPAL', gatewayRefId: authority },
+    })
+
+    if (!payment) {
+      return NextResponse.json(
+        { success: false, error: 'پرداخت یافت نشد' },
+        { status: 404 }
+      )
+    }
+
+    // اگر پرداخت قبلاً تایید شده، ریدایرکت بدون تغییر
+    if (payment.status === 'PAID') {
+      return NextResponse.redirect(
+        new URL(`/payment/success?orderId=${encodeURIComponent(payment.orderId)}`, req.url)
+      )
+    }
+
+    if (status !== 'OK') {
+      // ثبت شکست پرداخت
+      await db.payment.update({
+        where: { id: payment.id },
+        data: { status: 'FAILED', callbackData: u.toString() },
+      })
+
+      return NextResponse.json(
+        { success: false, error: 'پرداخت لغو شد' },
+        { status: 400 }
+      )
+    }
+
+    const result = await verifyZarinpalPayment(
+      Math.round(payment.amount),
+      authority
+    )
+
+    await db.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: 'PAID',
+        gatewayTrackId: String(result.ref_id || ''),
+        paidAt: new Date(),
+        callbackData: u.toString(),
+      },
+    })
+
+    await db.order.update({
+      where: { id: payment.orderId },
+      data: { paymentStatus: 'PAID' },
+    })
+
+    return NextResponse.redirect(
+      new URL(`/payment/success?orderId=${encodeURIComponent(payment.orderId)}`, req.url)
+    )
+  } catch (e) {
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : 'تایید پرداخت ناموفق بود' },
+      { status: 400 }
+    )
+  }
+}

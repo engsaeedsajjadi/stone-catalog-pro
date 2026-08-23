@@ -3,8 +3,22 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
+import { rateLimit } from '@/lib/rate-limit'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN', 'SALES_MANAGER'])
+  if ('response' in auth) return auth.response
+
+  // محدودیت نرخ داشبورد
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const limited = await rateLimit(`dashboard:${ip}`, 30, 60)
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
+      { status: 429 }
+    )
+  }
   try {
     const [
       totalStones,
@@ -37,17 +51,33 @@ export async function GET() {
         include: { images: { take: 1 }, category: true, prices: { where: { isActive: true }, take: 1 } },
       }),
       db.inquiry.groupBy({ by: ['status'], _count: true }),
-      // Last 14 days inquiry trend
+      // Last 14 days inquiry trend — یک کوئری به‌جای ۱۴ کوئری
       (async () => {
+        const fourteenDaysAgo = new Date()
+        fourteenDaysAgo.setHours(0, 0, 0, 0)
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13)
+
+        const rows = await db.inquiry.groupBy({
+          by: ['createdAt'],
+          where: { createdAt: { gte: fourteenDaysAgo } },
+          _count: true,
+        })
+
+        // گروه‌بندی بر اساس تاریخ (بدون ساعت)
+        const countsByDate = new Map<string, number>()
+        for (const row of rows) {
+          const date = new Date(row.createdAt).toISOString().slice(0, 10)
+          countsByDate.set(date, (countsByDate.get(date) || 0) + row._count)
+        }
+
+        // تکمیل روزهای بدون استعلام
         const days: Array<{ date: string; count: number }> = []
         for (let i = 13; i >= 0; i--) {
           const d = new Date()
           d.setHours(0, 0, 0, 0)
           d.setDate(d.getDate() - i)
-          const next = new Date(d)
-          next.setDate(d.getDate() + 1)
-          const c = await db.inquiry.count({ where: { createdAt: { gte: d, lt: next } } })
-          days.push({ date: d.toISOString().slice(0, 10), count: c })
+          const key = d.toISOString().slice(0, 10)
+          days.push({ date: key, count: countsByDate.get(key) || 0 })
         }
         return days
       })(),
@@ -95,6 +125,6 @@ export async function GET() {
     })
   } catch (e) {
     console.error('GET /api/dashboard error:', e)
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
   }
 }
