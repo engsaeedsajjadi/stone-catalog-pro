@@ -67,7 +67,7 @@ export async function PUT(
     ]
 
     // Resolve categorySlug to categoryId if provided
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const updateData: any = {}
     if (categorySlug) {
       const cat = await db.category.findUnique({ where: { slug: categorySlug } })

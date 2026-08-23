@@ -19,7 +19,7 @@ import {
   Factory, Globe2, Star, ArrowLeft, Send, FileText,
 } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type StoneDetail = any
 
 function siteBrandForSeo(stone:any){return stone?.category?.name ? {'@type':'Brand','name':stone.category.name} : undefined}
@@ -143,7 +143,7 @@ export function ProductDetailPage({ initialProductId }: { initialProductId?: str
               onClick={() => setZoomOpen(true)}
             >
               {images[activeImage] && (
-                // eslint-disable-next-line @next/next/no-img-element
+                 
                 <img
                   src={images[activeImage].url}
                   alt={images[activeImage].alt || stone.name}
@@ -200,7 +200,7 @@ export function ProductDetailPage({ initialProductId }: { initialProductId?: str
                       activeImage === i ? 'border-primary' : 'border-transparent hover:border-muted'
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    { }
                     <img src={img.url} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
@@ -476,7 +476,7 @@ export function ProductDetailPage({ initialProductId }: { initialProductId?: str
             <X className="w-6 h-6" />
           </button>
           {images[activeImage] && (
-            // eslint-disable-next-line @next/next/no-img-element
+             
             <img
               src={images[activeImage].url}
               alt={images[activeImage].alt}
@@ -498,7 +498,7 @@ export function ProductDetailPage({ initialProductId }: { initialProductId?: str
           </button>
           <div className="relative w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
             {images[activeImage] && (
-              // eslint-disable-next-line @next/next/no-img-element
+               
               <img
                 src={images[activeImage].url}
                 alt={images[activeImage].alt}
@@ -539,7 +539,7 @@ export function ProductDetailPage({ initialProductId }: { initialProductId?: str
               <button onClick={() => setQrOpen(false)}><X className="w-5 h-5" /></button>
             </div>
             <div className="text-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+              { }
               <img
                 src={`/api/qr?text=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/?product=${stone.id}` : '')}&size=300&format=svg`}
                 alt="QR Code"
@@ -583,7 +583,7 @@ export function ProductDetailPage({ initialProductId }: { initialProductId?: str
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function InquiryModal({ stone, onClose }: any) {
   const [form, setForm] = useState({
     customerName: '', customerPhone: '', customerEmail: '',
@@ -646,7 +646,7 @@ function InquiryModal({ stone, onClose }: any) {
         </div>
 
         <div className="bg-muted/30 rounded-lg p-3 mb-4 flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          { }
           <img src={stone.images?.[0]?.url} alt={stone.name} className="w-16 h-16 rounded-lg object-cover" />
           <div>
             <div className="font-bold">{stone.name}</div>

@@ -9,7 +9,7 @@ import { Heart, GitCompare, Eye, Share2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function ProductCard({ stone }: { stone: any }) {
   const {
     currency,
@@ -48,8 +48,9 @@ export function ProductCard({ stone }: { stone: any }) {
 
   const openProduct = () => {
     if (!productSlug) return
-
-    window.location.href = `/p/${encodeURIComponent(String(productSlug))}`
+    // استفاده از Next.js router به‌جای window.location
+    const { navigate } = useAppStore.getState()
+    navigate('product', { slug: String(productSlug) })
   }
 
   const handleShare = async () => {
@@ -186,7 +187,7 @@ export function ProductCard({ stone }: { stone: any }) {
           )}
 
           {image && (
-            // eslint-disable-next-line @next/next/no-img-element
+             
             <img
               src={image.url}
               alt={image.alt || stone.name}
