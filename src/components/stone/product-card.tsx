@@ -1,16 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { useAppStore, formatPrice } from '@/store/app-store'
+
+import {
+  useAppStore,
+  formatPrice,
+} from '@/store/app-store'
+
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Heart, GitCompare, Eye, Share2, Check } from 'lucide-react'
+
+import {
+  Heart,
+  GitCompare,
+  Eye,
+  Share2,
+  Check,
+} from 'lucide-react'
+
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
- 
-export function ProductCard({ stone }: { stone: any }) {
+type ProductCardProps = {
+  stone: any
+}
+
+export function ProductCard({
+  stone,
+}: ProductCardProps) {
   const {
     currency,
     toggleFavorite,
@@ -20,68 +38,185 @@ export function ProductCard({ stone }: { stone: any }) {
     t,
   } = useAppStore()
 
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const [shareTooltip, setShareTooltip] = useState(false)
+  const [
+    imageLoaded,
+    setImageLoaded,
+  ] = useState(false)
 
-  const image = stone.images?.[0] as any
+  const [
+    shareTooltip,
+    setShareTooltip,
+  ] = useState(false)
 
-  const priceSqm = stone.prices?.find(
-    (p: any) => p.type === 'PER_SQM' && p.currency === 'IRR'
-  )
+  const image =
+    stone?.images?.[0] || null
 
-  const priceExport = stone.prices?.find(
-    (p: any) => p.type === 'EXPORT' && p.currency === 'USD'
-  )
+  const priceSqm =
+    stone?.prices?.find(
+      (p: any) =>
+        p.type === 'PER_SQM' &&
+        p.currency === 'IRR'
+    )
 
-  const inv = stone.inventory
+  const priceExport =
+    stone?.prices?.find(
+      (p: any) =>
+        p.type === 'EXPORT' &&
+        p.currency === 'USD'
+    )
 
-  const isFav = favorites.includes(stone.id)
-  const isCompared = compareList.includes(stone.id)
+  const inv =
+    stone?.inventory
+
+  const isFav =
+    favorites.includes(
+      String(stone?.id)
+    )
+
+  const isCompared =
+    compareList.includes(
+      String(stone?.id)
+    )
 
   /*
-   * صفحه محصول در پروژه:
-   * /p/[slug]
+   * مهم:
    *
-   * و page.tsx نیز slug یا code را قبول می‌کند.
+   * صفحه جزئیات فعلی محصول را با ID از API می‌خواند.
+   *
+   * بنابراین هنگام کلیک روی کارت:
+   *
+   * navigate('product', { id: stone.id })
+   *
+   * استفاده می‌کنیم، نه slug.
    */
-  const productSlug = stone.slug || stone.code || stone.id
+  const productId =
+    stone?.id
+      ? String(stone.id)
+      : ''
+
+  const productSlug =
+    stone?.slug ||
+    stone?.code ||
+    stone?.id
 
   const openProduct = () => {
-    if (!productSlug) return
-    // استفاده از Next.js router به‌جای window.location
-    const { navigate } = useAppStore.getState()
-    navigate('product', { slug: String(productSlug) })
-  }
+    if (!productId) {
+      console.error(
+        'Product navigation failed: product id is missing',
+        stone
+      )
 
-  const handleShare = async () => {
-    const url =
-      typeof window !== 'undefined'
-        ? `${window.location.origin}/p/${encodeURIComponent(String(productSlug))}`
-        : ''
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: stone.name,
-          text: stone.descriptionEn || stone.name,
-          url,
-        })
-      } catch {}
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(url)
-      setShareTooltip(true)
-      setTimeout(() => setShareTooltip(false), 2000)
+      return
     }
+
+    const {
+      navigate,
+    } = useAppStore.getState()
+
+    navigate(
+      'product',
+      {
+        id: productId,
+      }
+    )
   }
+
+  const handleShare =
+    async () => {
+      if (!productSlug) {
+        return
+      }
+
+      const url =
+        typeof window !==
+        'undefined'
+          ? `${window.location.origin}/p/${encodeURIComponent(
+              String(productSlug)
+            )}`
+          : ''
+
+      if (!url) {
+        return
+      }
+
+      if (
+        typeof navigator !==
+          'undefined' &&
+        navigator.share
+      ) {
+        try {
+          await navigator.share({
+            title:
+              stone?.name ||
+              '',
+            text:
+              stone?.descriptionEn ||
+              stone?.name ||
+              '',
+            url,
+          })
+        } catch {
+          /*
+           * User cancelled share dialog.
+           */
+        }
+
+        return
+      }
+
+      if (
+        typeof navigator !==
+          'undefined' &&
+        navigator.clipboard
+      ) {
+        try {
+          await navigator.clipboard.writeText(
+            url
+          )
+
+          setShareTooltip(
+            true
+          )
+
+          window.setTimeout(
+            () => {
+              setShareTooltip(
+                false
+              )
+            },
+            2000
+          )
+        } catch (error) {
+          console.error(
+            'Failed to copy product URL:',
+            error
+          )
+        }
+      }
+    }
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-50px' }}
+      initial={{
+        opacity: 0,
+        y: 20,
+      }}
+      whileInView={{
+        opacity: 1,
+        y: 0,
+      }}
+      viewport={{
+        once: true,
+        margin: '-50px',
+      }}
       transition={{
         duration: 0.5,
-        ease: [0.22, 1, 0.36, 1],
+        ease: [
+          0.22,
+          1,
+          0.36,
+          1,
+        ],
       }}
       className="h-full"
     >
@@ -89,25 +224,25 @@ export function ProductCard({ stone }: { stone: any }) {
 
         {/* Badges */}
         <div className="absolute top-3 right-3 z-10 flex flex-col gap-1.5">
-          {stone.isFeatured && (
+          {stone?.isFeatured && (
             <Badge className="bg-gold text-brand-900 hover:bg-gold shadow-md text-xs">
               ★ ویژه
             </Badge>
           )}
 
-          {stone.isNewest && (
+          {stone?.isNewest && (
             <Badge className="bg-green-600 text-white hover:bg-green-700 shadow-md text-xs">
               جدید
             </Badge>
           )}
 
-          {stone.isBestSeller && (
+          {stone?.isBestSeller && (
             <Badge className="bg-red-600 text-white hover:bg-red-700 shadow-md text-xs">
               پرفروش
             </Badge>
           )}
 
-          {stone.isExportGrade && (
+          {stone?.isExportGrade && (
             <Badge className="bg-blue-700 text-white hover:bg-blue-800 shadow-md text-xs">
               صادراتی
             </Badge>
@@ -121,16 +256,24 @@ export function ProductCard({ stone }: { stone: any }) {
             variant="secondary"
             size="icon"
             className="w-8 h-8 bg-background/90 backdrop-blur-sm shadow-md"
-            onClick={(e) => {
-              e.stopPropagation()
-              toggleFavorite(stone.id)
+            onClick={(event) => {
+              event.stopPropagation()
+
+              if (!stone?.id) {
+                return
+              }
+
+              toggleFavorite(
+                String(stone.id)
+              )
             }}
             aria-label="Add to favorites"
           >
             <Heart
               className={cn(
                 'w-4 h-4',
-                isFav && 'fill-red-500 text-red-500'
+                isFav &&
+                  'fill-red-500 text-red-500'
               )}
             />
           </Button>
@@ -143,9 +286,16 @@ export function ProductCard({ stone }: { stone: any }) {
               isCompared &&
                 'bg-primary text-primary-foreground'
             )}
-            onClick={(e) => {
-              e.stopPropagation()
-              toggleCompare(stone.id)
+            onClick={(event) => {
+              event.stopPropagation()
+
+              if (!stone?.id) {
+                return
+              }
+
+              toggleCompare(
+                String(stone.id)
+              )
             }}
             aria-label="Add to compare"
           >
@@ -160,8 +310,8 @@ export function ProductCard({ stone }: { stone: any }) {
             variant="secondary"
             size="icon"
             className="w-8 h-8 bg-background/90 backdrop-blur-sm shadow-md relative"
-            onClick={(e) => {
-              e.stopPropagation()
+            onClick={(event) => {
+              event.stopPropagation()
               handleShare()
             }}
             aria-label="Share"
@@ -181,23 +331,51 @@ export function ProductCard({ stone }: { stone: any }) {
         <div
           className="image-zoom relative aspect-[4/3.1] bg-muted cursor-pointer overflow-hidden"
           onClick={openProduct}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (
+              event.key === 'Enter' ||
+              event.key === ' '
+            ) {
+              event.preventDefault()
+              openProduct()
+            }
+          }}
+          aria-label={`مشاهده ${stone?.name || 'محصول'}`}
         >
           {!imageLoaded && (
             <div className="absolute inset-0 shimmer" />
           )}
 
           {image && (
-             
             <img
               src={image.url}
-              alt={image.alt || stone.name}
+              alt={
+                image.alt ||
+                stone?.name ||
+                ''
+              }
               loading="lazy"
-              onLoad={() => setImageLoaded(true)}
+              onLoad={() =>
+                setImageLoaded(true)
+              }
+              onError={() =>
+                setImageLoaded(true)
+              }
               className={cn(
                 'w-full h-full object-cover transition-opacity duration-500',
-                imageLoaded ? 'opacity-100' : 'opacity-0'
+                imageLoaded
+                  ? 'opacity-100'
+                  : 'opacity-0'
               )}
             />
+          )}
+
+          {!image && (
+            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
+              تصویر موجود نیست
+            </div>
           )}
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -206,8 +384,8 @@ export function ProductCard({ stone }: { stone: any }) {
           <div className="absolute bottom-3 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all">
             <Button
               size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
+              onClick={(event) => {
+                event.stopPropagation()
                 openProduct()
               }}
               className="bg-background/95 text-foreground hover:bg-background shadow-lg rounded-full px-4"
@@ -219,11 +397,13 @@ export function ProductCard({ stone }: { stone: any }) {
 
           {/* Status */}
           <div className="absolute bottom-3 right-3">
-            {stone.status === 'AVAILABLE' ? (
+            {stone?.status ===
+            'AVAILABLE' ? (
               <Badge className="bg-green-500/95 text-white backdrop-blur-sm shadow-md">
                 ● {t('common.available')}
               </Badge>
-            ) : stone.status === 'IN_PRODUCTION' ? (
+            ) : stone?.status ===
+              'IN_PRODUCTION' ? (
               <Badge className="bg-amber-500/95 text-white backdrop-blur-sm shadow-md">
                 ● در حال تولید
               </Badge>
@@ -244,12 +424,26 @@ export function ProductCard({ stone }: { stone: any }) {
               <h3
                 className="font-black text-base leading-tight truncate cursor-pointer hover:text-primary transition-colors"
                 onClick={openProduct}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (
+                    event.key ===
+                      'Enter' ||
+                    event.key ===
+                      ' '
+                  ) {
+                    event.preventDefault()
+                    openProduct()
+                  }
+                }}
               >
-                {stone.name}
+                {stone?.name}
               </h3>
 
               <p className="text-xs text-muted-foreground mt-0.5">
-                {stone.code} • {stone.category?.name}
+                {stone?.code} •{' '}
+                {stone?.category?.name}
               </p>
 
             </div>
@@ -261,13 +455,15 @@ export function ProductCard({ stone }: { stone: any }) {
               <span
                 className="w-3 h-3 rounded-full border border-border"
                 style={{
-                  background: stone.color || '#999',
+                  background:
+                    stone?.color ||
+                    '#999',
                 }}
               />
-              {stone.color}
+              {stone?.color}
             </span>
 
-            {stone.quarry && (
+            {stone?.quarry && (
               <>
                 <span>•</span>
                 <span className="truncate">
@@ -280,7 +476,7 @@ export function ProductCard({ stone }: { stone: any }) {
           {/* Specs */}
           <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
 
-            {stone.thickness && (
+            {stone?.thickness && (
               <Badge
                 variant="outline"
                 className="text-[10px]"
@@ -289,7 +485,7 @@ export function ProductCard({ stone }: { stone: any }) {
               </Badge>
             )}
 
-            {stone.surfaceFinish && (
+            {stone?.surfaceFinish && (
               <Badge
                 variant="outline"
                 className="text-[10px]"
@@ -298,7 +494,7 @@ export function ProductCard({ stone }: { stone: any }) {
               </Badge>
             )}
 
-            {stone.isExportGrade && (
+            {stone?.isExportGrade && (
               <Badge
                 variant="outline"
                 className="text-[10px] text-blue-700 border-blue-300"
@@ -317,7 +513,9 @@ export function ProductCard({ stone }: { stone: any }) {
               {priceSqm && (
                 <>
                   <div className="text-xs text-muted-foreground">
-                    {t('price.perSqm')}
+                    {t(
+                      'price.perSqm'
+                    )}
                   </div>
 
                   <div className="font-bold text-primary text-base">
