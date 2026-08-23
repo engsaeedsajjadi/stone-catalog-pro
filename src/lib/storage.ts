@@ -3,34 +3,34 @@ import {
   writeFile,
   unlink,
   readFile,
-} from 'fs/promises'
-import path from 'path'
-import crypto from 'crypto'
-import sharp from 'sharp'
+} from "fs/promises"
+import path from "path"
+import crypto from "crypto"
+import sharp from "sharp"
 
 import {
   put,
   del,
   get,
-} from '@vercel/blob'
+} from "@vercel/blob"
 
 import {
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
   S3Client,
-} from '@aws-sdk/client-s3'
+} from "@aws-sdk/client-s3"
 
 /* -------------------------------------------------------------------------- */
-/* Allowed image formats                                                      */
+/* Configuration                                                              */
 /* -------------------------------------------------------------------------- */
 
 const ALLOWED = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/avif',
-  'image/svg+xml',
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/svg+xml",
 ])
 
 const MAX_UPLOAD_MB = Number(
@@ -40,50 +40,94 @@ const MAX_UPLOAD_MB = Number(
 const MAX_BYTES =
   MAX_UPLOAD_MB * 1024 * 1024
 
+export type StorageProvider =
+  | "blob"
+  | "s3"
+  | "local"
+
 /**
- * Storage provider:
+ * Production:
  *
- * blob  -> Vercel Blob
- * s3    -> S3 / Cloudflare R2 / compatible storage
- * local -> Local filesystem
+ * Vercel => ALWAYS Blob unless explicitly configured as S3.
+ *
+ * Local development:
+ *
+ * STORAGE_PROVIDER=blob
+ * STORAGE_PROVIDER=s3
+ * STORAGE_PROVIDER=local
+ *
+ * IMPORTANT:
+ * Never silently fallback from Blob to Local in production.
  */
-const provider = (() => {
+function resolveProvider(): StorageProvider {
   const configured =
-    process.env.STORAGE_PROVIDER?.toLowerCase()
+    process.env.STORAGE_PROVIDER
+      ?.trim()
+      .toLowerCase()
 
-  /*
-   * Vercel filesystem is not persistent.
-   *
-   * Never use local storage on Vercel.
-   */
-  if (process.env.VERCEL === '1') {
-    if (configured === 's3') {
-      return 's3'
-    }
-
-    return 'blob'
+  if (
+    configured &&
+    !["blob", "s3", "local"].includes(
+      configured
+    )
+  ) {
+    throw new Error(
+      `STORAGE_PROVIDER نامعتبر است: ${configured}. ` +
+        "مقادیر مجاز: blob, s3, local"
+    )
   }
 
-  return (
-    configured ||
-    (
-      process.env.BLOB_READ_WRITE_TOKEN
-        ? 'blob'
-        : 'local'
-    )
-  )
-})()
+  /*
+   * Vercel Production
+   */
+  if (process.env.VERCEL === "1") {
+    if (configured === "s3") {
+      return "s3"
+    }
+
+    /*
+     * حتی اگر STORAGE_PROVIDER تنظیم نشده باشد،
+     * Vercel باید Blob استفاده کند.
+     */
+    return "blob"
+  }
+
+  /*
+   * Local development
+   */
+  if (configured) {
+    return configured as StorageProvider
+  }
+
+  /*
+   * اگر Token موجود باشد Blob را ترجیح بده.
+   */
+  if (
+    process.env.BLOB_READ_WRITE_TOKEN
+  ) {
+    return "blob"
+  }
+
+  /*
+   * فقط در Development اجازه Local داریم.
+   */
+  return "local"
+}
+
+const provider =
+  resolveProvider()
 
 /* -------------------------------------------------------------------------- */
-/* S3 / R2                                                                    */
+/* S3 / Cloudflare R2                                                         */
 /* -------------------------------------------------------------------------- */
 
 const s3 =
-  provider === 's3' &&
+  provider === "s3" &&
   process.env.S3_BUCKET
     ? new S3Client({
         region:
-          process.env.S3_REGION || 'auto',
+          process.env.S3_REGION ||
+          "auto",
 
         endpoint:
           process.env.S3_ENDPOINT ||
@@ -100,7 +144,8 @@ const s3 =
                   process.env.S3_ACCESS_KEY_ID,
 
                 secretAccessKey:
-                  process.env.S3_SECRET_ACCESS_KEY,
+                  process.env
+                    .S3_SECRET_ACCESS_KEY,
               }
             : undefined,
       })
@@ -121,6 +166,38 @@ export type StoredUpload = {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Provider validation                                                        */
+/* -------------------------------------------------------------------------- */
+
+function ensureProviderIsValid() {
+  if (
+    ![
+      "blob",
+      "s3",
+      "local",
+    ].includes(provider)
+  ) {
+    throw new Error(
+      `Storage provider نامعتبر است: ${provider}`
+    )
+  }
+
+  /*
+   * Production safety:
+   * اگر Vercel هستیم، Local نباید هیچ‌وقت استفاده شود.
+   */
+  if (
+    process.env.VERCEL === "1" &&
+    provider === "local"
+  ) {
+    throw new Error(
+      "Local storage روی Vercel مجاز نیست. " +
+        "STORAGE_PROVIDER را روی blob یا s3 تنظیم کنید."
+    )
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Local storage                                                              */
 /* -------------------------------------------------------------------------- */
 
@@ -129,11 +206,13 @@ function getLocalStorageBase(): string {
     process.env.UPLOAD_DIR ||
     path.join(
       process.cwd(),
-      'storage',
-      'uploads'
+      "storage",
+      "uploads"
     )
 
-  return path.resolve(configuredBase)
+  return path.resolve(
+    configuredBase
+  )
 }
 
 function resolveLocalStoragePath(
@@ -141,10 +220,10 @@ function resolveLocalStoragePath(
 ): string {
   if (
     !storageKey ||
-    typeof storageKey !== 'string'
+    typeof storageKey !== "string"
   ) {
     throw new Error(
-      'Invalid storage key'
+      "Invalid storage key"
     )
   }
 
@@ -152,14 +231,14 @@ function resolveLocalStoragePath(
     path.normalize(storageKey)
 
   if (
-    normalized === '..' ||
+    normalized === ".." ||
     normalized.startsWith(
       `..${path.sep}`
     ) ||
     path.isAbsolute(normalized)
   ) {
     throw new Error(
-      'Invalid storage key'
+      "Invalid storage key"
     )
   }
 
@@ -186,7 +265,7 @@ function resolveLocalStoragePath(
     )
   ) {
     throw new Error(
-      'Invalid storage key'
+      "Invalid storage key"
     )
   }
 
@@ -194,22 +273,20 @@ function resolveLocalStoragePath(
 }
 
 /* -------------------------------------------------------------------------- */
-/* Provider validation                                                        */
+/* Blob configuration                                                         */
 /* -------------------------------------------------------------------------- */
 
-function ensureProviderIsValid() {
-  if (
-    ![
-      'blob',
-      's3',
-      'local',
-    ].includes(provider)
-  ) {
+function getBlobToken(): string {
+  const token =
+    process.env.BLOB_READ_WRITE_TOKEN
+
+  if (!token) {
     throw new Error(
-      `STORAGE_PROVIDER نامعتبر است: ${provider}. ` +
-        `مقادیر مجاز: blob, s3, local`
+      "BLOB_READ_WRITE_TOKEN در Environment Variables تنظیم نشده است"
     )
   }
+
+  return token
 }
 
 /* -------------------------------------------------------------------------- */
@@ -221,14 +298,10 @@ export async function storeImage(
 ): Promise<StoredUpload> {
   ensureProviderIsValid()
 
-  /* ------------------------------------------------------------------------ */
-  /* Validate uploaded file                                                   */
-  /* ------------------------------------------------------------------------ */
-
   if (!ALLOWED.has(file.type)) {
     throw new Error(
       `فرمت تصویر مجاز نیست: ${
-        file.type || 'unknown'
+        file.type || "unknown"
       }`
     )
   }
@@ -249,13 +322,9 @@ export async function storeImage(
 
   if (!input.length) {
     throw new Error(
-      'فایل تصویر خالی است'
+      "فایل تصویر خالی است"
     )
   }
-
-  /* ------------------------------------------------------------------------ */
-  /* Validate image                                                           */
-  /* ------------------------------------------------------------------------ */
 
   let meta
 
@@ -264,7 +333,7 @@ export async function storeImage(
       await sharp(input).metadata()
   } catch {
     throw new Error(
-      'فایل تصویر معتبر نیست'
+      "فایل تصویر معتبر نیست"
     )
   }
 
@@ -273,13 +342,9 @@ export async function storeImage(
     !meta.height
   ) {
     throw new Error(
-      'فایل تصویر معتبر نیست'
+      "فایل تصویر معتبر نیست"
     )
   }
-
-  /* ------------------------------------------------------------------------ */
-  /* Optimize image                                                           */
-  /* ------------------------------------------------------------------------ */
 
   let optimized: Buffer
 
@@ -293,19 +358,15 @@ export async function storeImage(
         .toBuffer()
   } catch {
     throw new Error(
-      'پردازش و تبدیل تصویر ناموفق بود'
+      "پردازش و تبدیل تصویر ناموفق بود"
     )
   }
 
   if (!optimized.length) {
     throw new Error(
-      'خروجی پردازش تصویر خالی است'
+      "خروجی پردازش تصویر خالی است"
     )
   }
-
-  /* ------------------------------------------------------------------------ */
-  /* Storage key                                                              */
-  /* ------------------------------------------------------------------------ */
 
   const year =
     new Date().getUTCFullYear()
@@ -314,37 +375,32 @@ export async function storeImage(
     `${year}/${crypto.randomUUID()}.webp`
 
   /*
-   * Application-level media URL.
+   * Application URL.
    *
-   * We intentionally do not expose the private Blob URL.
+   * This URL remains stable even if the storage
+   * backend changes.
    */
   const url =
     `/api/media/${key}`
 
   /* ======================================================================== */
-  /* VERCEL BLOB - PRIVATE                                                    */
+  /* VERCEL BLOB                                                              */
   /* ======================================================================== */
 
-  if (provider === 'blob') {
+  if (provider === "blob") {
     const token =
-      process.env.BLOB_READ_WRITE_TOKEN
-
-    if (!token) {
-      throw new Error(
-        'BLOB_READ_WRITE_TOKEN در Environment Variables تنظیم نشده است'
-      )
-    }
+      getBlobToken()
 
     await put(
       key,
       optimized,
       {
-        access: 'private',
+        access: "private",
 
         token,
 
         contentType:
-          'image/webp',
+          "image/webp",
 
         cacheControlMaxAge:
           31536000,
@@ -355,23 +411,16 @@ export async function storeImage(
     )
 
     return {
-      storageKey:
-        key,
-
+      storageKey: key,
       url,
-
       originalName:
         file.name,
-
       mimeType:
-        'image/webp',
-
+        "image/webp",
       size:
         optimized.length,
-
       width:
         meta.width,
-
       height:
         meta.height,
     }
@@ -381,13 +430,13 @@ export async function storeImage(
   /* S3 / CLOUDFLARE R2                                                       */
   /* ======================================================================== */
 
-  if (provider === 's3') {
+  if (provider === "s3") {
     if (
       !s3 ||
       !process.env.S3_BUCKET
     ) {
       throw new Error(
-        'S3/R2 تنظیم نشده است'
+        "S3/R2 تنظیم نشده است"
       )
     }
 
@@ -403,24 +452,24 @@ export async function storeImage(
           optimized,
 
         ContentType:
-          'image/webp',
+          "image/webp",
 
         CacheControl:
-          'public,max-age=31536000,immutable',
+          "public,max-age=31536000,immutable",
       })
     )
 
     const publicUrl =
-      process.env.S3_PUBLIC_BASE_URL
+      process.env
+        .S3_PUBLIC_BASE_URL
         ? `${process.env.S3_PUBLIC_BASE_URL.replace(
             /\/$/,
-            ''
+            ""
           )}/${key}`
         : url
 
     return {
-      storageKey:
-        key,
+      storageKey: key,
 
       url:
         publicUrl,
@@ -429,7 +478,7 @@ export async function storeImage(
         file.name,
 
       mimeType:
-        'image/webp',
+        "image/webp",
 
       size:
         optimized.length,
@@ -443,11 +492,13 @@ export async function storeImage(
   }
 
   /* ======================================================================== */
-  /* LOCAL                                                                    */
+  /* LOCAL DEVELOPMENT                                                        */
   /* ======================================================================== */
 
   const target =
-    resolveLocalStoragePath(key)
+    resolveLocalStoragePath(
+      key
+    )
 
   await mkdir(
     path.dirname(target),
@@ -460,13 +511,12 @@ export async function storeImage(
     target,
     optimized,
     {
-      flag: 'wx',
+      flag: "wx",
     }
   )
 
   return {
-    storageKey:
-      key,
+    storageKey: key,
 
     url,
 
@@ -474,7 +524,7 @@ export async function storeImage(
       file.name,
 
     mimeType:
-      'image/webp',
+      "image/webp",
 
     size:
       optimized.length,
@@ -504,15 +554,9 @@ export async function deleteStoredFile(
   /* VERCEL BLOB                                                              */
   /* ======================================================================== */
 
-  if (provider === 'blob') {
+  if (provider === "blob") {
     const token =
-      process.env.BLOB_READ_WRITE_TOKEN
-
-    if (!token) {
-      throw new Error(
-        'BLOB_READ_WRITE_TOKEN در Environment Variables تنظیم نشده است'
-      )
-    }
+      getBlobToken()
 
     try {
       await del(
@@ -523,7 +567,7 @@ export async function deleteStoredFile(
       )
     } catch {
       /*
-       * File may already be deleted.
+       * Already deleted is harmless.
        */
     }
 
@@ -534,13 +578,13 @@ export async function deleteStoredFile(
   /* S3 / R2                                                                  */
   /* ======================================================================== */
 
-  if (provider === 's3') {
+  if (provider === "s3") {
     if (
       !s3 ||
       !process.env.S3_BUCKET
     ) {
       throw new Error(
-        'S3/R2 تنظیم نشده است'
+        "S3/R2 تنظیم نشده است"
       )
     }
 
@@ -585,47 +629,30 @@ export async function readStoredFile(
 
   if (!storageKey) {
     throw new Error(
-      'Invalid storage key'
+      "Invalid storage key"
     )
   }
 
   /* ======================================================================== */
-  /* VERCEL BLOB - PRIVATE                                                    */
+  /* VERCEL BLOB                                                              */
   /* ======================================================================== */
 
-  if (provider === 'blob') {
+  if (provider === "blob") {
     const token =
-      process.env.BLOB_READ_WRITE_TOKEN
+      getBlobToken()
 
-    if (!token) {
-      throw new Error(
-        'BLOB_READ_WRITE_TOKEN در Environment Variables تنظیم نشده است'
-      )
-    }
-
-    /*
-     * IMPORTANT:
-     *
-     * Do not:
-     *
-     *   head() -> blob.url -> fetch(blob.url)
-     *
-     * for a private Blob.
-     *
-     * Use the authenticated Blob SDK get() operation instead.
-     */
     const result =
       await get(
         storageKey,
         {
-          access: 'private',
+          access: "private",
           token,
         }
       )
 
     if (!result) {
       throw new Error(
-        'File not found'
+        "File not found"
       )
     }
 
@@ -639,7 +666,7 @@ export async function readStoredFile(
 
     if (!result.stream) {
       throw new Error(
-        'Blob stream is unavailable'
+        "Blob stream is unavailable"
       )
     }
 
@@ -656,7 +683,7 @@ export async function readStoredFile(
 
       contentType:
         result.blob.contentType ||
-        'application/octet-stream',
+        "application/octet-stream",
     }
   }
 
@@ -664,13 +691,13 @@ export async function readStoredFile(
   /* S3 / R2                                                                  */
   /* ======================================================================== */
 
-  if (provider === 's3') {
+  if (provider === "s3") {
     if (
       !s3 ||
       !process.env.S3_BUCKET
     ) {
       throw new Error(
-        'S3/R2 تنظیم نشده است'
+        "S3/R2 تنظیم نشده است"
       )
     }
 
@@ -687,7 +714,7 @@ export async function readStoredFile(
 
     if (!out.Body) {
       throw new Error(
-        'File not found'
+        "File not found"
       )
     }
 
@@ -696,12 +723,11 @@ export async function readStoredFile(
 
     return {
       data:
-        Buffer.from(
-          bytes
-        ),
+        Buffer.from(bytes),
 
       contentType:
-        out.ContentType,
+        out.ContentType ||
+        "application/octet-stream",
     }
   }
 
@@ -716,11 +742,9 @@ export async function readStoredFile(
 
   return {
     data:
-      await readFile(
-        target
-      ),
+      await readFile(target),
 
     contentType:
-      'application/octet-stream',
+      "application/octet-stream",
   }
 }
