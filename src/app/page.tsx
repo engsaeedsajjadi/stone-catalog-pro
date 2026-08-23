@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { useAppStore } from '@/store/app-store'
-import { Navbar } from '@/components/public/navbar'
-import { Footer } from '@/components/public/footer'
 import { HomePage } from '@/components/public/home-page'
 import { CatalogPage } from '@/components/public/catalog-page'
 import { ProductDetailPage } from '@/components/public/product-detail-page'
@@ -12,10 +10,10 @@ import { ComparePage } from '@/components/public/compare-page'
 import { LoginPage } from '@/components/public/login-page'
 import { AdminPage } from '@/components/admin/admin-page'
 import { Toaster as SonnerToaster } from 'sonner'
-import { SiteRuntime, useSiteConfig } from '@/components/public/site-runtime'
+import { useSiteConfig } from '@/components/public/site-runtime'
 
 export default function Home() {
-  const { route, params, navigate, isExhibitionMode, lang } = useAppStore()
+  const { route, navigate, isExhibitionMode, lang } = useAppStore()
 
   // Handle URL params (deep linking for product view, search, etc.)
   useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{}) }, [])
@@ -41,13 +39,10 @@ export default function Home() {
   const isRTL = lang === 'fa' || lang === 'ar'
 
   // Hide chrome for login & admin & exhibition
-  const isChromeless = route === 'login' || route === 'admin' || isExhibitionMode
 
   return (
-    <SiteRuntime><div className="min-h-screen flex flex-col bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
-      {!isChromeless && <Navbar />}
-
-      <main className="flex-1">
+    <div className="min-h-full bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
+      <main className="min-h-full">
         {route === 'home' && <HomePage />}
         {route === 'catalog' && <CatalogPage />}
         {route === 'product' && <ProductDetailPage />}
@@ -60,10 +55,8 @@ export default function Home() {
         {route === 'admin' && <AdminPage />}
         {isExhibitionMode && <ExhibitionMode />}
       </main>
-
-      {!isChromeless && <Footer />}
       <SonnerToaster position="top-center" richColors />
-    </div></SiteRuntime>
+    </div>
   )
 }
 

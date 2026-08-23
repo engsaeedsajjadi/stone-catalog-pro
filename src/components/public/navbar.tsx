@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/store/app-store'
 import { useSiteConfig } from '@/components/public/site-runtime'
 import { Button } from '@/components/ui/button'
@@ -51,7 +52,8 @@ const CURRENCIES = [
   { code: 'RUB', label: 'روبل', symbol: '₽' },
 ] as const
 
-export function Navbar() {
+export function Navbar({ onHome, onCatalog }: { onHome?: () => void; onCatalog?: () => void }) {
+  const router = useRouter()
   const { t, lang, setLang, currency, setCurrency, navigate, route, user, logout, favorites, compareList } = useAppStore()
   const site = useSiteConfig()
   const [scrolled, setScrolled] = useState(false)
@@ -67,16 +69,26 @@ export function Navbar() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    navigate('catalog', { q: searchValue })
+    router.push(searchValue.trim() ? `/catalog?q=${encodeURIComponent(searchValue.trim())}` : '/catalog')
     setSearchOpen(false)
     setMobileOpen(false)
   }
 
   const dynamicNav = site.nav.filter(x => x.enabled).sort((a,b)=>a.order-b.order)
   const handleNav = (key: string) => {
-    if (/^https?:\/\//i.test(key)) window.location.href = key
-    else if (key.startsWith('/')) window.location.href = key
-    else navigate(key)
+    if (key === 'home') {
+      if (onHome) onHome()
+      else router.push('/')
+    } else if (key === 'catalog') {
+      if (onCatalog) onCatalog()
+      else router.push('/catalog')
+    } else if (/^https?:\/\//i.test(key)) {
+      window.location.href = key
+    } else if (key.startsWith('/')) {
+      router.push(key)
+    } else {
+      navigate(key)
+    }
     setMobileOpen(false)
   }
 
