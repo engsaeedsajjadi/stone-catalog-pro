@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
       }
 
       // مرتب‌سازی و صفحه‌بندی بر اساس قیمت با raw query ایمن (فقط شناسه‌ها)
-      const sortedIds = await db.$queryRawUnsafe<Array<{ id: string }>>(
+      const sortedIds = await db.$queryRawUnsafe(
         `SELECT s.id
          FROM "Stone" s
          INNER JOIN "StonePrice" sp ON sp."stoneId" = s.id
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
         matchingIds,
         pageSize,
         (page - 1) * pageSize
-      )
+      ) as Array<{ id: string }>
 
       const pagedStones = await db.stone.findMany({
         where: { id: { in: sortedIds.map(r => r.id) } },
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
 
       // حفظ ترتیب مرتب‌سازی SQL
       const idOrder = new Map(sortedIds.map((r, i) => [r.id, i]))
-      pagedStones.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0))
+      pagedStones.sort((a: { id: string }, b: { id: string }) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0))
 
       return NextResponse.json({
         success: true,
