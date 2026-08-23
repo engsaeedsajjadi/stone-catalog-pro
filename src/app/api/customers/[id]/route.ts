@@ -39,7 +39,7 @@ export async function PUT(
     const body = await req.json()
     const { name, companyName, email, phone, country, city, address, customerType, status, source, assigneeId, notes, tags } = body
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const updateData: any = {}
     if (name !== undefined) updateData.name = name
     if (companyName !== undefined) updateData.companyName = companyName || null

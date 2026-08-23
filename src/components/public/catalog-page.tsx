@@ -14,7 +14,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { ProductCard } from '@/components/stone/product-card'
 import { Search, SlidersHorizontal, X, Grid3x3, List, Loader2 } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type Stone = any
 
 

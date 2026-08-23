@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 import { ImageUploader, type UploadedImage } from '@/components/admin/image-uploader'
 import { SiteDesigner } from '@/components/admin/site-designer'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type DashboardData = any
 
 export function AdminPage() {
@@ -354,7 +354,7 @@ function DashboardTab() {
                   {i + 1}
                 </div>
                 {s.images?.[0] && (
-                  // eslint-disable-next-line @next/next/no-img-element
+                   
                   <img src={s.images[0].url} alt={s.name} className="w-10 h-10 rounded-lg object-cover" />
                 )}
                 <div className="flex-1 min-w-0">
@@ -416,7 +416,7 @@ function ProductsTab() {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const [editing, setEditing] = useState<any | null>(null)
   const productExcelInputRef = useRef<HTMLInputElement>(null)
 
@@ -605,7 +605,7 @@ function ProductsTab() {
                   <td className="p-3">
                     <div className="flex items-center gap-2">
                       {p.images?.[0] && (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img src={p.images[0].url} alt={p.name} className="w-10 h-10 rounded-lg object-cover" />
                       )}
                       <div>
@@ -666,7 +666,7 @@ function ProductsTab() {
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function ProductFormModal({ mode, product, categories, onSave, onClose }: any) {
   const [form, setForm] = useState({
     name: product?.name || '',
@@ -726,7 +726,7 @@ function ProductFormModal({ mode, product, categories, onSave, onClose }: any) {
     }
 
     // Build payload
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const payload: any = {
       name: form.name,
       nameEn: form.nameEn || null,
@@ -1027,7 +1027,7 @@ function ProductFormModal({ mode, product, categories, onSave, onClose }: any) {
 }
 
 // ============ PRICING TAB ============
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 type PriceRow = { id?: string; type: string; amount: number; currency: string; minQuantity?: number; discount?: number; notes?: string; isNew?: boolean }
 
 const PRICE_TYPES: { type: string; label: string; currency: 'IRR' | 'USD'; hint?: string }[] = [
@@ -1044,7 +1044,7 @@ function PricingTab() {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<string | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const [editPrices, setEditPrices] = useState<Record<string, PriceRow>>({})
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -1236,7 +1236,7 @@ function PricingTab() {
                     <td className="p-3 sticky right-0 bg-background z-10">
                       <div className="flex items-center gap-2">
                         {p.images?.[0] && (
-                          // eslint-disable-next-line @next/next/no-img-element
+                           
                           <img src={p.images[0].url} alt={p.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                         )}
                         <div className="min-w-0">
@@ -1470,7 +1470,7 @@ function InventoryTab() {
 function CustomersTab() {
   const [customers, setCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const [editing, setEditing] = useState<any | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
@@ -1650,7 +1650,7 @@ function CustomersTab() {
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function CustomerFormModal({ mode, customer, onSave, onClose }: any) {
   const [form, setForm] = useState({
     name: customer?.name || '',
@@ -1938,7 +1938,7 @@ function InquiriesTab() {
 function CategoriesTab() {
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const [editing, setEditing] = useState<any | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create')
@@ -2040,7 +2040,7 @@ function CategoriesTab() {
                 <div className="flex items-center justify-between p-3 hover:bg-accent/50 bg-muted/20">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {c.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
+                       
                       <img src={c.image} alt={c.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                     ) : (
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -2092,7 +2092,7 @@ function CategoriesTab() {
                         <div className="flex items-center gap-2 text-sm flex-1 min-w-0">
                           <ChevronLeft className="w-3 h-3 text-muted-foreground shrink-0" />
                           {ch.image && (
-                            // eslint-disable-next-line @next/next/no-img-element
+                             
                             <img src={ch.image} alt={ch.name} className="w-7 h-7 rounded object-cover shrink-0" />
                           )}
                           <div className="min-w-0">
@@ -2137,7 +2137,7 @@ function CategoriesTab() {
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function CategoryFormModal({ mode, category, parentCategories, onSave, onClose }: any) {
   const [form, setForm] = useState({
     name: category?.name || '',

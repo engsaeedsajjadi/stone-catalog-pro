@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GitCompare, X, Check, ArrowLeft, Loader2 } from 'lucide-react'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function ComparePage() {
   const { compareList, navigate, clearCompare, currency, t } = useAppStore()
   const [stones, setStones] = useState<any[]>([])
@@ -90,7 +90,7 @@ export function ComparePage() {
                   <th key={s.id} className="p-4 min-w-[200px] text-center">
                     <div className="space-y-2">
                       {s.images?.[0] && (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img
                           src={s.images[0].url}
                           alt={s.name}

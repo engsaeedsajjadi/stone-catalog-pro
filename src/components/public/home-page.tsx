@@ -74,6 +74,9 @@ function ImageCarousel({
 
   const [index, setIndex] = useState(0)
 
+  // ریست ایندکس اگر از حد تصاویر عبور کند
+  const safeIndex = validImages.length > 0 ? index % validImages.length : 0
+
   useEffect(() => {
     if (validImages.length <= 1) {
       return
@@ -92,21 +95,6 @@ function ImageCarousel({
       window.clearInterval(timer)
     }
   }, [validImages.length, interval])
-
-  useEffect(() => {
-    if (
-      validImages.length === 0
-    ) {
-      setIndex(0)
-      return
-    }
-
-    if (
-      index >= validImages.length
-    ) {
-      setIndex(0)
-    }
-  }, [index, validImages.length])
 
   if (validImages.length === 0) {
     return null
@@ -141,12 +129,12 @@ function ImageCarousel({
             src={image}
             alt=""
             aria-hidden={
-              imageIndex !== index
+              imageIndex !== safeIndex
             }
             className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-in-out"
             style={{
               opacity:
-                imageIndex === index
+                imageIndex === safeIndex
                   ? 1
                   : 0,
             }}
@@ -191,7 +179,7 @@ function ImageCarousel({
                     setIndex(dotIndex)
                   }
                   className={`h-2.5 rounded-full transition-all duration-300 ${
-                    dotIndex === index
+                    dotIndex === safeIndex
                       ? "w-8 bg-white"
                       : "w-2.5 bg-white/50 hover:bg-white/75"
                   }`}

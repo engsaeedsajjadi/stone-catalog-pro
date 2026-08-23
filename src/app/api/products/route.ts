@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
       'isFeatured', 'isNewest', 'isBestSeller', 'isExportGrade',
       'status', 'rating',
     ]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const stoneData: any = { categoryId }
     for (const f of stoneFields) {
       if (body[f] !== undefined) stoneData[f] = body[f]
