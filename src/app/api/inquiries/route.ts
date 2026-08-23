@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
+import { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,8 +12,7 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')
     const customerId = searchParams.get('customerId')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {}
+    const where: Prisma.InquiryWhereInput = {}
     if (status) where.status = status
     if (customerId) where.customerId = customerId
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: inquiries })
   } catch (e) {
     console.error('GET /api/inquiries error:', e)
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
   }
 }
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'نام و شماره تماس الزامی است' }, { status: 400 })
     }
 
-    // Try to match existing customer by phone
+    // یافتن مشتری موجود بر اساس شماره تماس
     let customer = await db.customer.findFirst({ where: { phone: customerPhone } })
     if (!customer) {
       customer = await db.customer.create({
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: inquiry })
   } catch (e) {
     console.error('POST /api/inquiries error:', e)
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
   }
 }
 
@@ -122,6 +122,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true, data: inquiry })
   } catch (e) {
     console.error('PATCH /api/inquiries error:', e)
-    return NextResponse.json({ success: false, error: 'Update failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'بروزرسانی ناموفق بود' }, { status: 500 })
   }
 }

@@ -1,1 +1,41 @@
-export const runtime="nodejs";export const dynamic="force-dynamic";import {NextResponse} from 'next/server';import crypto from 'node:crypto';export async function GET(){const id=process.env.GOOGLE_CLIENT_ID;const redirect=process.env.GOOGLE_REDIRECT_URI;if(!id||!redirect) return NextResponse.json({success:false,error:'Google OAuth is not configured'},{status:503});const state=crypto.randomBytes(24).toString('hex');const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');url.searchParams.set('client_id',id);url.searchParams.set('redirect_uri',redirect);url.searchParams.set('response_type','code');url.searchParams.set('scope','openid email profile');url.searchParams.set('state',state);const res=NextResponse.redirect(url);res.cookies.set('google_oauth_state',state,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',maxAge:600,path:'/'});return res}
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+import { NextResponse } from 'next/server'
+import crypto from 'node:crypto'
+
+/**
+ * GET /api/auth/google/start — شروع فرآیند OAuth گوگل
+ */
+export async function GET() {
+  const id = process.env.GOOGLE_CLIENT_ID
+  const redirect = process.env.GOOGLE_REDIRECT_URI
+
+  if (!id || !redirect) {
+    return NextResponse.json(
+      { success: false, error: 'Google OAuth تنظیم نشده است' },
+      { status: 503 }
+    )
+  }
+
+  // تولید state برای محافظت CSRF
+  const state = crypto.randomBytes(24).toString('hex')
+
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+  url.searchParams.set('client_id', id)
+  url.searchParams.set('redirect_uri', redirect)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('scope', 'openid email profile')
+  url.searchParams.set('state', state)
+
+  const res = NextResponse.redirect(url)
+  res.cookies.set('google_oauth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 600,
+    path: '/',
+  })
+
+  return res
+}

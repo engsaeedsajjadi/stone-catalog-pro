@@ -23,10 +23,11 @@ export async function GET(
         auditLogs: { take: 10, orderBy: { createdAt: 'desc' } },
       },
     })
-    if (!stone) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 })
+    if (!stone) return NextResponse.json({ success: false, error: 'محصول یافت نشد' }, { status: 404 })
 
-    // Increment view count
-    await db.stone.update({ where: { id }, data: { viewCount: { increment: 1 } } })
+    // افزایش شمارنده بازدید — از طریق Job برای عملکرد بهتر
+    // به‌جای write مستقیم، از increment بدون await استفاده می‌شود
+    db.stone.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
 
     // Get related stones (same category)
     const related = await db.stone.findMany({
@@ -38,7 +39,7 @@ export async function GET(
     return NextResponse.json({ success: true, data: { ...stone, inventory: stone.inventory?.[0] || null, related } })
   } catch (e) {
     console.error('GET /api/products/[id] error:', e)
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
   }
 }
 
@@ -156,7 +157,7 @@ export async function PUT(
     return NextResponse.json({ success: true, data: stone })
   } catch (e) {
     console.error('PUT /api/products/[id] error:', e)
-    return NextResponse.json({ success: false, error: 'Update failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'بروزرسانی ناموفق بود' }, { status: 500 })
   }
 }
 
@@ -172,6 +173,6 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error('DELETE /api/products/[id] error:', e)
-    return NextResponse.json({ success: false, error: 'Delete failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'حذف ناموفق بود' }, { status: 500 })
   }
 }

@@ -4,10 +4,21 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN','SALES_MANAGER','OPERATOR'])
   if ('response' in auth) return auth.response
+
+  // محدودیت نرخ
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const limited = await rateLimit(`inventory:${ip}`, 30, 60)
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
+      { status: 429 }
+    )
+  }
   try {
     const body = await req.json()
     const { stoneId, slabCount, totalSqm, availableSqm, reservedSqm, inProductionSqm, blockCount, warehouseCode = 'MAIN', warehouseName = 'Main Warehouse', location } = body
@@ -44,6 +55,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: true, data: inv })
   } catch (e) {
     console.error('PUT /api/inventory error:', e)
-    return NextResponse.json({ success: false, error: 'Update failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'بروزرسانی ناموفق بود' }, { status: 500 })
   }
 }

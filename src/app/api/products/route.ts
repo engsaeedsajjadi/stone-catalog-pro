@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '24')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {}
+    // TODO: پس از prisma generate، از Prisma.StoneWhereInput استفاده شود
+    const where: Prisma.StoneWhereInput = {}
     if (q) {
       where.OR = [
         { name: { contains: q } },
@@ -38,14 +38,16 @@ export async function GET(req: NextRequest) {
       ]
     }
     if (categorySlug) {
-      const cat = await db.category.findUnique({ where: { slug: categorySlug }, select: { id: true } })
+      const cat = await db.category.findUnique({
+        where: { slug: categorySlug },
+        select: { id: true, children: { select: { id: true } } },
+      })
       if (cat) {
-        const children = await db.category.findMany({ where: { parentId: cat.id }, select: { id: true } })
-        const catIds = [cat.id, ...children.map(c => c.id)]
+        const catIds = [cat.id, ...cat.children.map(c => c.id)]
         where.categoryId = { in: catIds }
       }
     }
-    if (color) where.color = { contains: color }
+    if (color) where.color = { contains: color, mode: 'insensitive' }
     if (finish) where.surfaceFinish = finish
     if (thickness) where.thickness = thickness
     if (isExport) where.isExportGrade = true
@@ -56,23 +58,57 @@ export async function GET(req: NextRequest) {
 
     // Price range filter
     if (minPrice || maxPrice) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const priceFilter: any = { isActive: true, currency: 'IRR', type: 'PER_SQM' }
-      if (minPrice) priceFilter.amount = { ...(priceFilter.amount || {}), gte: parseFloat(minPrice) }
-      if (maxPrice) priceFilter.amount = { ...(priceFilter.amount || {}), lte: parseFloat(maxPrice) }
+      const priceFilter: Prisma.StonePriceWhereInput = { isActive: true, currency: 'IRR', type: 'PER_SQM' }
+      if (minPrice || maxPrice) {
+        const amountFilter: { gte?: number; lte?: number } = {}
+        if (minPrice) amountFilter.gte = parseFloat(minPrice)
+        if (maxPrice) amountFilter.lte = parseFloat(maxPrice)
+        priceFilter.amount = amountFilter as Prisma.FloatFilter
+      }
       where.prices = { some: priceFilter }
     }
 
-    // For price-based sorting, we need to fetch all matching and sort in JS
-    // because Prisma's _min/_max orderBy on relations doesn't work well with SQLite
-    // and pagination combined.
+    // مرتب‌سازی بر اساس قیمت با کوئری ایمن و صفحه‌بندی
     const needsPriceSort = sort === 'price-asc' || sort === 'price-desc'
 
     if (needsPriceSort) {
-      // Fetch all matching stones with their prices
-      const allStones = await db.stone.findMany({
+      const priceOrder = sort === 'price-asc' ? 'asc' : 'desc'
+
+      // ابتدا شناسه محصولات منطبق با فیلترها را با Prisma پیدا می‌کنیم
+      const matchingStones = await db.stone.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      })
+
+      const matchingIds = matchingStones.map(s => s.id)
+      const total = matchingIds.length
+
+      if (total === 0) {
+        return NextResponse.json({
+          success: true,
+          data: [],
+          pagination: { page, pageSize, total: 0, totalPages: 0 },
+        })
+      }
+
+      // مرتب‌سازی و صفحه‌بندی بر اساس قیمت با raw query ایمن (فقط شناسه‌ها)
+      const sortedIds = await db.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT s.id
+         FROM "Stone" s
+         INNER JOIN "StonePrice" sp ON sp."stoneId" = s.id
+           AND sp."isActive" = true
+           AND sp.type = 'PER_SQM'
+           AND sp.currency = 'IRR'
+         WHERE s.id = ANY($1)
+         ORDER BY sp.amount ${priceOrder === 'asc' ? 'ASC' : 'DESC'}
+         LIMIT $2 OFFSET $3`,
+        matchingIds,
+        pageSize,
+        (page - 1) * pageSize
+      )
+
+      const pagedStones = await db.stone.findMany({
+        where: { id: { in: sortedIds.map(r => r.id) } },
         include: {
           category: true,
           images: { take: 1, orderBy: { order: 'asc' } },
@@ -81,19 +117,13 @@ export async function GET(req: NextRequest) {
         },
       })
 
-      // Sort by PER_SQM price in IRR
-      const sorted = allStones.sort((a, b) => {
-        const priceA = a.prices.find(p => p.type === 'PER_SQM' && p.currency === 'IRR')?.amount ?? Infinity
-        const priceB = b.prices.find(p => p.type === 'PER_SQM' && p.currency === 'IRR')?.amount ?? Infinity
-        return sort === 'price-asc' ? priceA - priceB : priceB - priceA
-      })
-
-      const total = sorted.length
-      const pagedStones = sorted.slice((page - 1) * pageSize, page * pageSize)
+      // حفظ ترتیب مرتب‌سازی SQL
+      const idOrder = new Map(sortedIds.map((r, i) => [r.id, i]))
+      pagedStones.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0))
 
       return NextResponse.json({
         success: true,
-        data: pagedStones.map((stone: any) => ({ ...stone, inventory: stone.inventory?.[0] || null })),
+        data: pagedStones.map((stone) => ({ ...stone, inventory: stone.inventory?.[0] || null })),
         pagination: {
           page,
           pageSize,
@@ -136,7 +166,7 @@ export async function GET(req: NextRequest) {
     })
   } catch (e) {
     console.error('GET /api/products error:', e)
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
   }
 }
 
@@ -233,6 +263,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data: stone })
   } catch (e) {
     console.error('POST /api/products error:', e)
-    return NextResponse.json({ success: false, error: 'Create failed' }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'ایجاد محصول ناموفق بود' }, { status: 500 })
   }
 }

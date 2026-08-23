@@ -1,1 +1,52 @@
-export const runtime="nodejs";export const dynamic="force-dynamic";import {NextRequest,NextResponse} from 'next/server';import {db} from '@/lib/db';import {aiChat} from '@/lib/ai';export async function POST(req:NextRequest){try{const {stoneId}=await req.json();const stone=await db.stone.findUnique({where:{id:stoneId},include:{category:true}});if(!stone)return NextResponse.json({success:false,error:'Stone not found'},{status:404});const candidates=await db.stone.findMany({where:{id:{not:stoneId},categoryId:stone.categoryId},take:30,select:{id:true,name:true,color:true,application:true,features:true}});const raw=await aiChat([{role:'system',content:'Recommend similar stones. Return JSON only as [{"id":"...","score":0.0,"reason":"..."}] and never invent IDs.'},{role:'user',content:JSON.stringify({target:{id:stone.id,name:stone.name,color:stone.color,application:stone.application,features:stone.features},candidates})}]);return NextResponse.json({success:true,data:{raw}})}catch(e){return NextResponse.json({success:false,error:e instanceof Error?e.message:'AI recommendation unavailable'},{status:503})}}
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
+
+/**
+ * GET /api/ai/recommend — پیشنهاد محصولات مرتبط
+ */
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req)
+  if ('response' in auth) return auth.response
+
+  try {
+    const stoneId = req.nextUrl.searchParams.get('stoneId')
+    if (!stoneId) {
+      return NextResponse.json(
+        { success: false, error: 'شناسه محصول الزامی است' },
+        { status: 400 }
+      )
+    }
+
+    const recommendations = await db.recommendation.findMany({
+      where: { stoneId },
+      orderBy: { score: 'desc' },
+      take: 6,
+    })
+
+    if (recommendations.length === 0) {
+      return NextResponse.json({ success: true, data: [] })
+    }
+
+    const recommendedStones = await db.stone.findMany({
+      where: {
+        id: { in: recommendations.map((r) => r.recommendedStoneId) },
+      },
+      include: {
+        images: { take: 1 },
+        category: true,
+        prices: { where: { isActive: true }, take: 1 },
+      },
+    })
+
+    return NextResponse.json({ success: true, data: recommendedStones })
+  } catch (e) {
+    return NextResponse.json(
+      { success: false, error: e instanceof Error ? e.message : 'دریافت پیشنهاد ناموفق بود' },
+      { status: 500 }
+    )
+  }
+}

@@ -676,7 +676,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         lang: state.lang,
         currency: state.currency,
-        user: state.user,
+        // user عمداً ذخیره نمی‌شود — باید از سشن سرور خوانده شود
         compareList: state.compareList,
         favorites: state.favorites,
         theme: state.theme,
