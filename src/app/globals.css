@@ -249,48 +249,22 @@
   transform: scale(1.08);
 }
 
-/* Stone Catalog Premium Home */
-:root {
-  --site-border: color-mix(in srgb, var(--border) 82%, transparent);
+
+/* Premium architectural landing UI */
+.landing-editorial {
+  text-wrap: balance;
 }
 
-html { scroll-behavior: smooth; }
-
-::selection {
-  background: color-mix(in srgb, var(--site-accent) 35%, transparent);
-}
-
-.stone-card {
-  border-color: var(--site-border, var(--border));
-  box-shadow: 0 12px 35px rgba(17, 24, 39, .05);
-  transition: transform .35s ease, box-shadow .35s ease, border-color .35s ease;
-}
-
-.stone-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 24px 55px rgba(17, 24, 39, .10);
-  border-color: color-mix(in srgb, var(--site-accent) 35%, var(--border));
+.premium-line {
+  background: linear-gradient(90deg, transparent, oklch(0.72 0.10 75), transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
-}
-
-/* Shared public application shell */
-.site-app-shell {
-  min-height: 100dvh;
-  background:
-    radial-gradient(circle at top left, color-mix(in oklab, var(--site-accent) 5%, transparent), transparent 34%),
-    var(--site-background, var(--background));
-}
-.site-app-shell main {
-  width: 100%;
-}
-.site-app-shell .container {
-  width: min(100% - 2rem, 1440px);
-  margin-inline: auto;
-}
-@media (min-width: 1024px) {
-  .site-app-shell .container { width: min(100% - 4rem, 1440px); }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

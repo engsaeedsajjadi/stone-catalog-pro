@@ -1,9 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/store/app-store'
-import { useSiteConfig } from '@/components/public/site-runtime'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -52,10 +50,8 @@ const CURRENCIES = [
   { code: 'RUB', label: 'روبل', symbol: '₽' },
 ] as const
 
-export function Navbar({ onHome, onCatalog }: { onHome?: () => void; onCatalog?: () => void }) {
-  const router = useRouter()
+export function Navbar() {
   const { t, lang, setLang, currency, setCurrency, navigate, route, user, logout, favorites, compareList } = useAppStore()
-  const site = useSiteConfig()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -69,66 +65,75 @@ export function Navbar({ onHome, onCatalog }: { onHome?: () => void; onCatalog?:
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    router.push(searchValue.trim() ? `/catalog?q=${encodeURIComponent(searchValue.trim())}` : '/catalog')
+    navigate('catalog', { q: searchValue })
     setSearchOpen(false)
     setMobileOpen(false)
   }
 
-  const dynamicNav = site.nav.filter(x => x.enabled).sort((a,b)=>a.order-b.order)
   const handleNav = (key: string) => {
-    if (key === 'home') {
-      if (onHome) onHome()
-      else router.push('/')
-    } else if (key === 'catalog') {
-      if (onCatalog) onCatalog()
-      else router.push('/catalog')
-    } else if (/^https?:\/\//i.test(key)) {
-      window.location.href = key
-    } else if (key.startsWith('/')) {
-      router.push(key)
-    } else {
-      navigate(key)
-    }
+    navigate(key)
     setMobileOpen(false)
   }
 
   return (
     <>
+      {/* Top contact bar */}
+      <div className="hidden border-b border-white/10 bg-[#12110f] py-1.5 text-xs text-white/65 lg:block">
+        <div className="container mx-auto px-4 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <a href="tel:+982112345678" className="flex items-center gap-1.5 hover:text-gold transition-colors">
+              <Phone className="w-3 h-3" /> +98 21 1234 5678
+            </a>
+            <a href="mailto:info@stonecatalog.ir" className="flex items-center gap-1.5 hover:text-gold transition-colors">
+              <Mail className="w-3 h-3" /> info@stonecatalog.ir
+            </a>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-gold">✦ صادرات به ۳۰+ کشور</span>
+            <span>•</span>
+            <span>تهران - شمس‌آباد</span>
+          </div>
+        </div>
+      </div>
+
       {/* Main navbar */}
       <header
         className={cn(
           'sticky top-0 z-50 transition-all duration-500',
-          scrolled ? 'glass-strong shadow-lg' : 'glass'
+          scrolled ? 'border-white/10 bg-[#12110f]/92 shadow-[0_12px_40px_rgba(0,0,0,.18)] backdrop-blur-xl' : 'border-transparent bg-transparent'
         )}
       >
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-20 gap-4">
+          <div className="flex h-[76px] items-center justify-between gap-4">
             {/* Logo */}
             <button onClick={() => handleNav('home')} className="flex items-center gap-3 shrink-0 group">
-              <div className="relative w-12 h-12 rounded-xl bg-background border overflow-hidden flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">{site.brand.logoUrl ? <img src={site.brand.logoUrl} alt={site.brand.nameFa || site.brand.nameEn || ''} className="w-full h-full object-contain p-1" /> : <Sparkles className="w-6 h-6" style={{color:'var(--site-accent)'}} />}</div>
-              <div className="hidden sm:block text-right">
-                <div className="font-bold text-lg leading-tight bg-gradient-to-l from-brand-700 to-brand-500 bg-clip-text text-transparent">
-                  {site.brand.nameFa || site.brand.nameEn || ""}
+              <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#d6b66a]/40 bg-[#1b1814] shadow-lg transition-transform group-hover:scale-105">
+                <Sparkles className="h-5 w-5 text-[#d6b66a]" />
+                <div className="absolute inset-0 rounded-full bg-[#d6b66a]/5" />
+              </div>
+              <div className="hidden text-right sm:block">
+                <div className="text-base font-black leading-tight text-white">
+                  Stone Catalog Pro
                 </div>
-                <div className="text-xs text-muted-foreground">{site.brand.taglineFa || site.brand.taglineEn || ""}</div>
+                <div className="text-[10px] tracking-wide text-white/40">سنگیران کاتالوگ</div>
               </div>
             </button>
 
             {/* Desktop nav */}
             <nav className="hidden lg:flex items-center gap-1">
-              {(dynamicNav.length ? dynamicNav : NAV_ITEMS.map(x=>({label:t(x.label),href:x.key,enabled:true,order:0}))).map((item:any) => (
+              {NAV_ITEMS.map(item => (
                 <button
-                  key={`${item.href}-${item.label}` }
-                  onClick={() => handleNav(item.href)}
+                  key={item.key}
+                  onClick={() => handleNav(item.key)}
                   className={cn(
-                    'px-4 py-2 rounded-lg text-sm font-medium transition-all relative',
-                    route === item.href
-                      ? 'text-primary bg-accent'
-                      : 'text-foreground hover:text-primary hover:bg-accent/60'
+                    'relative px-4 py-2 text-sm font-medium text-white/65 transition-all hover:text-white',
+                    route === item.key
+                      ? 'text-white'
+                      : 'text-white/65 hover:text-white'
                   )}
                 >
-                  {item.label}
-                  {route === item.href && (
+                  {t(item.label)}
+                  {route === item.key && (
                     <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gold rounded-full" />
                   )}
                 </button>
@@ -145,7 +150,7 @@ export function Navbar({ onHome, onCatalog }: { onHome?: () => void; onCatalog?:
                     placeholder={t('search.placeholder')}
                     value={searchValue}
                     onChange={(e) => setSearchValue(e.target.value)}
-                    className="w-56 lg:w-72 pr-10 bg-background/80"
+                    className="w-56 border-white/10 bg-white/5 pr-10 text-white placeholder:text-white/35 lg:w-72"
                   />
                   <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 </div>
@@ -289,18 +294,18 @@ export function Navbar({ onHome, onCatalog }: { onHome?: () => void; onCatalog?:
                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     </form>
                     <nav className="flex flex-col gap-1">
-                      {(dynamicNav.length ? dynamicNav : NAV_ITEMS.map(x=>({label:t(x.label),href:x.key,enabled:true,order:0}))).map((item:any) => (
+                      {NAV_ITEMS.map(item => (
                         <button
-                          key={`${item.href}-${item.label}` }
-                          onClick={() => handleNav(item.href)}
+                          key={item.key}
+                          onClick={() => handleNav(item.key)}
                           className={cn(
                             'px-4 py-3 rounded-lg text-right text-sm font-medium transition-all',
-                            route === item.href
+                            route === item.key
                               ? 'bg-primary text-primary-foreground'
                               : 'hover:bg-accent'
                           )}
                         >
-                          {item.label}
+                          {t(item.label)}
                         </button>
                       ))}
                     </nav>
