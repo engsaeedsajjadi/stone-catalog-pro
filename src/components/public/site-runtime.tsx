@@ -52,6 +52,30 @@ export function SiteRuntime({
       config.seo.title ||
       config.brand.nameFa ||
       document.title
+
+    // favicon تنظیم‌شده در بخش برند
+    const favicon = config.brand.faviconUrl || config.brand.logoUrl
+    if (favicon) {
+      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.href = favicon
+    }
+
+    // توضیحات متا و og:image
+    const description = config.seo.description
+    if (description) {
+      let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+      if (!meta) {
+        meta = document.createElement('meta')
+        meta.name = 'description'
+        document.head.appendChild(meta)
+      }
+      meta.content = description
+    }
   }, [config])
 
   return (
