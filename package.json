@@ -15,12 +15,12 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "db:deploy": "prisma migrate deploy",
-    "admin:create": "tsx scripts/create-admin.ts",
-    "media:migrate:blob": "tsx scripts/migrate-local-media-to-blob.ts",
+    "admin:create": "tsx --conditions=react-server scripts/create-admin.ts",
+    "media:migrate:blob": "tsx --conditions=react-server scripts/migrate-local-media-to-blob.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "postinstall": "prisma generate",
-    "worker": "tsx scripts/worker.ts",
+    "worker": "tsx --conditions=react-server scripts/worker.ts",
     "backup": "tsx scripts/backup.ts"
   },
   "dependencies": {

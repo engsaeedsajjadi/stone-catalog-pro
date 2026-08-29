@@ -54,6 +54,32 @@ RUN npm run build
 
 
 # ------------------------------------------------------------
+# 2.5 Worker — پردازش Jobها و ارسال Webhookها
+#
+# این مرحله «آخرین» مرحله نیست؛ تصویر پیش‌فرض همچنان runner است
+# (مگر با --target worker یا target: worker در compose).
+# ------------------------------------------------------------
+FROM node:22-alpine AS worker
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# وابستگی‌ها و کلاینت Prisma از مرحله‌ی deps
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+
+# سورس‌های لازم برای اجرا با tsx
+COPY package.json tsconfig.json ./
+COPY scripts ./scripts
+COPY src ./src
+
+# شرط react-server لازم است چون ماژول‌های سروری از بسته‌ی server-only استفاده می‌کنند
+CMD ["npx", "tsx", "--conditions=react-server", "scripts/worker.ts"]
+
+
+# ------------------------------------------------------------
 # 3. Production Runner
 # ------------------------------------------------------------
 FROM node:22-alpine AS runner

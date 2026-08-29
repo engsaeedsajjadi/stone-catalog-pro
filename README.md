@@ -57,6 +57,8 @@ npm run admin:create
 npm run dev
 ```
 
+برای اجرای وب‌هوک‌ها در محیط توسعه، در یک ترمینال جداگانه `npm run worker` را اجرا کنید.
+
 برای Production از PostgreSQL استفاده شود و `DATABASE_URL` معتبر تنظیم شود.
 
 ## Storage واقعی
@@ -90,11 +92,27 @@ Meilisearch، AI، OTP، Google OAuth، اعلان‌ها، ERP و درگاه پ
 
 ## Worker
 
-برای Job/Webhookهای پس‌زمینه:
+برای Job/Webhookهای پس‌زمینه (ارسال وب‌هوک‌ها بدون این سرویس انجام نمی‌شود):
 
 ```powershell
 npm run worker
 ```
+
+در استقرار با Docker، سرویس `worker` در `docker-compose.yml` تعریف شده است و همراه
+سایت بالا می‌آید:
+
+```powershell
+docker compose up -d --build
+```
+
+> نکته: اسکریپت‌های خط فرمان (از جمله `admin:create` و `worker`) باید با شرط
+> `react-server` اجرا شوند، چون ماژول‌های سمت سرور از بسته‌ی `server-only`
+> استفاده می‌کنند. این کار در اسکریپت‌های `package.json` لحاظ شده است؛ اگر
+> مستقیماً اجرا می‌کنید از این شکل استفاده کنید:
+>
+> ```powershell
+> npx tsx --conditions=react-server scripts/create-admin.ts
+> ```
 
 ## Backup
 

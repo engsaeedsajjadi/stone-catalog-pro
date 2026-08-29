@@ -16,3 +16,14 @@ yarn-error.log*
 .env.*.local
 
 storage/uploads
+
+# تست‌ها، مستندات و خروجی‌های ابزارها وارد تصویر نمی‌شوند
+docs
+tests
+coverage
+backups
+.github
+playwright-report
+test-results
+*.test.ts
+*.spec.ts
