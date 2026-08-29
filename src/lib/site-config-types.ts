@@ -209,15 +209,17 @@ export type SiteConfig = {
  */
 export const emptySiteConfig: SiteConfig = {
   brand: {},
+  // هم‌تراز با DEFAULT_SITE_CONFIG تا هنگام بارگذاری تنظیمات،
+  // پرش رنگ/ظاهر دیده نشود
   theme: {
-    primary: '#1f2937',
-    secondary: '#111827',
-    accent: '#d4af37',
+    primary: '#111827',
+    secondary: '#374151',
+    accent: '#d4a72c',
     background: '#ffffff',
     foreground: '#111827',
     muted: '#f3f4f6',
-    radius: '16px',
-    font: 'system-ui',
+    radius: '0.75rem',
+    font: 'Vazirmatn',
     cardStyle: 'soft',
     buttonStyle: 'rounded',
   },

@@ -59,6 +59,8 @@ interface AppState {
 // ============ TRANSLATIONS ============
 const translations: Record<Language, Record<string, string>> = {
   fa: {
+    'brand.name': 'کاتالوگ سنگ',
+    'brand.tagline': 'مرجع تخصصی سنگ',
     'nav.home': 'خانه',
     'nav.catalog': 'کاتالوگ',
     'nav.categories': 'دسته‌بندی‌ها',
@@ -170,6 +172,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'در حال تولید',
   },
   en: {
+    'brand.name': 'Stone Catalog',
+    'brand.tagline': 'Specialized stone catalog',
     'nav.home': 'Home',
     'nav.catalog': 'Catalog',
     'nav.categories': 'Categories',
@@ -281,6 +285,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'In Production',
   },
   ar: {
+    'brand.name': 'كتالوج الأحجار',
+    'brand.tagline': 'المرجع المتخصص للأحجار',
     'nav.home': 'الرئيسية',
     'nav.catalog': 'الكتالوج',
     'nav.categories': 'الفئات',
@@ -392,6 +398,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'قيد الإنتاج',
   },
   ru: {
+    'brand.name': 'Каталог камня',
+    'brand.tagline': 'Специализированный каталог камня',
     'nav.home': 'Главная',
     'nav.catalog': 'Каталог',
     'nav.categories': 'Категории',
@@ -503,6 +511,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'В производстве',
   },
   tr: {
+    'brand.name': 'Taş Kataloğu',
+    'brand.tagline': 'Uzman taş kataloğu',
     'nav.home': 'Ana Sayfa',
     'nav.catalog': 'Katalog',
     'nav.categories': 'Kategoriler',
