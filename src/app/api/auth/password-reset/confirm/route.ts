@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     await db.$transaction([
       db.user.update({
         where: { id: row.userId },
-        data: { password: hashPassword(password) },
+        data: { password: await hashPassword(password) },
       }),
       db.passwordResetToken.update({
         where: { id: row.id },

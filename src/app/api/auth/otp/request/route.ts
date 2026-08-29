@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { createOtp } from '@/lib/otp'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 /**
  * POST /api/auth/otp/request — درخواست کد OTP
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     // محدودیت نرخ: ۳ درخواست در ۵ دقیقه
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(req)
     const limited = await rateLimit(`otp:${ip}:${target}`, 3, 300)
 
     if (!limited.allowed) {

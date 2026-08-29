@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
         data: {
           email,
           name: info.name || info.email,
-          password: hashPassword(crypto.randomBytes(32).toString('hex')),
+          password: await hashPassword(crypto.randomBytes(32).toString('hex')),
           role: 'OPERATOR',
         },
       })

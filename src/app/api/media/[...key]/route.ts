@@ -26,11 +26,6 @@ export async function GET(
 
     const storageKey = key.join('/')
 
-    console.log(
-      '[MEDIA] Requested:',
-      storageKey
-    )
-
     const asset =
       await db.mediaAsset.findUnique({
         where: {
@@ -39,21 +34,10 @@ export async function GET(
       })
 
     if (!asset) {
-      console.error(
-        '[MEDIA] Asset not found in database:',
-        storageKey
-      )
-
       return new NextResponse('Not Found', {
         status: 404,
       })
     }
-
-    console.log(
-      '[MEDIA] Asset found:',
-      asset.id,
-      asset.storageKey
-    )
 
     const stored =
       await readStoredFile(storageKey)
@@ -63,11 +47,6 @@ export async function GET(
       !stored.data ||
       stored.data.length === 0
     ) {
-      console.error(
-        '[MEDIA] Empty file:',
-        storageKey
-      )
-
       return new NextResponse('File Empty', {
         status: 404,
       })

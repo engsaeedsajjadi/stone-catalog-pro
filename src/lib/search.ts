@@ -1,10 +1,14 @@
 import { db } from '@/lib/db'
-import { serializeStones } from '@/lib/stone-serialize'
+import { serializeStones, type SerializeOptions } from '@/lib/stone-serialize'
 
 /**
  * جستجوی سنگ‌ها با Meilisearch یا fallback به دیتابیس
  */
-export async function searchStones(query: string, limit = 24) {
+export async function searchStones(
+  query: string,
+  limit = 24,
+  options: SerializeOptions = {}
+) {
   const url = process.env.MEILI_URL?.trim()
   const key = process.env.MEILI_MASTER_KEY?.trim()
 
@@ -48,5 +52,5 @@ export async function searchStones(query: string, limit = 24) {
     },
   })
 
-  return { mode: 'database', hits: serializeStones(stones) }
+  return { mode: 'database', hits: serializeStones(stones, options) }
 }

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
 import { serializeStone } from '@/lib/stone-serialize'
+import { getViewer } from '@/lib/auth'
 
 export async function GET(
   _req: NextRequest,
@@ -26,6 +27,9 @@ export async function GET(
     })
     if (!stone) return NextResponse.json({ success: false, error: 'محصول یافت نشد' }, { status: 404 })
 
+    const viewer = await getViewer(_req)
+    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+
     // افزایش شمارنده بازدید — از طریق Job برای عملکرد بهتر
     // به‌جای write مستقیم، از increment بدون await استفاده می‌شود
     db.stone.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
@@ -37,7 +41,7 @@ export async function GET(
       include: { images: { take: 1 } },
     })
 
-    return NextResponse.json({ success: true, data: { ...serializeStone(stone), related } })
+    return NextResponse.json({ success: true, data: { ...serializeStone(stone, serializeOptions), related } })
   } catch (e) {
     console.error('GET /api/products/[id] error:', e)
     return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })

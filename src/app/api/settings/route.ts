@@ -14,7 +14,10 @@ const settingsUpdateSchema = z.record(
   { message: 'حداکثر ۵۰ تنظیم قابل ارسال است' }
 )
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN'])
+  if ('response' in auth) return auth.response
+
   try {
     const settings = await db.setting.findMany()
     const map: Record<string, string> = {}

@@ -5,13 +5,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN','SALES_MANAGER','OPERATOR'])
   if ('response' in auth) return auth.response
 
   // محدودیت نرخ
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(req)
   const limited = await rateLimit(`inventory:${ip}`, 30, 60)
   if (!limited.allowed) {
     return NextResponse.json(

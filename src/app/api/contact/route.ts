@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 import { z } from 'zod'
 
 const contactSchema = z.object({
@@ -18,7 +19,7 @@ const contactSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(req)
     const limited = await rateLimit(`contact:${ip}`, 10, 60)
     if (!limited.allowed) {
       return NextResponse.json(

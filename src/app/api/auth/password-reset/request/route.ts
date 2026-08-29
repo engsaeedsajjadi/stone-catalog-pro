@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { hashToken, issueRefreshToken } from '@/lib/security'
 import { sendNotification } from '@/lib/notifications'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 /**
  * POST /api/auth/password-reset/request — درخواست بازیابی رمز عبور
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     // محدودیت نرخ: ۳ درخواست در ۱۵ دقیقه
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(req)
     const limited = await rateLimit(`pw-reset:${ip}:${normalizedEmail}`, 3, 900)
 
     if (!limited.allowed) {

@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
+import { checkSafeOutboundUrl } from '@/lib/url-safety'
 
 /**
  * GET /api/webhooks — لیست Webhook‌ها (فقط ADMIN)
@@ -12,10 +13,20 @@ export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN'])
   if ('response' in auth) return auth.response
 
-  return NextResponse.json({
-    success: true,
-    data: await db.webhook.findMany({ orderBy: { createdAt: 'desc' } }),
+  const hooks = await db.webhook.findMany({
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      name: true,
+      url: true,
+      events: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   })
+
+  return NextResponse.json({ success: true, data: hooks })
 }
 
 /**
@@ -35,6 +46,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // آدرس مقصد نباید به شبکه‌ی داخلی اشاره کند (SSRF)
+    const safety = checkSafeOutboundUrl(body.url)
+    if (!safety.ok) {
+      return NextResponse.json(
+        { success: false, error: safety.reason },
+        { status: 400 }
+      )
+    }
+
     const webhook = await db.webhook.create({
       data: {
         name: String(body.name || ''),
@@ -46,8 +66,11 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // secret هیچ‌وقت در پاسخ برگردانده نمی‌شود
+    const { secret: _secret, ...safeWebhook } = webhook
+
     return NextResponse.json(
-      { success: true, data: webhook },
+      { success: true, data: safeWebhook },
       { status: 201 }
     )
   } catch (e) {

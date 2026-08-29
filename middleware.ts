@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isCsrfSafe } from '@/lib/csrf'
 
-const PUBLIC_EXACT = new Set([
-  '/api/auth/login',
-  '/api/auth/me',
-  '/api/auth/logout',
-  '/api/auth/refresh',
-  '/api/contact',
-  '/api/compare',
-  '/api/qr',
+/**
+ * Endpointهای عمومی به‌همراه متد مجاز
+ *
+ * توجه: تعیین متد اهمیت دارد؛ مثلاً POST /api/inquiries باید برای
+ * بازدیدکننده‌ی ناشناس باز باشد، ولی GET همان مسیر (لیست استعلام‌ها)
+ * فقط برای کاربران واردشده.
+ */
+const PUBLIC_ROUTES = new Map<string, Set<string>>([
+  ['/api/auth/login', new Set(['POST'])],
+  ['/api/auth/me', new Set(['GET'])],
+  ['/api/auth/logout', new Set(['POST'])],
+  ['/api/auth/refresh', new Set(['POST'])],
+  ['/api/auth/otp/request', new Set(['POST'])],
+  ['/api/auth/otp/verify', new Set(['POST'])],
+  ['/api/auth/password-reset/request', new Set(['POST'])],
+  ['/api/auth/password-reset/confirm', new Set(['POST'])],
+  ['/api/auth/google/start', new Set(['GET'])],
+  ['/api/auth/google/callback', new Set(['GET'])],
+  ['/api/contact', new Set(['POST'])],
+  ['/api/compare', new Set(['GET'])],
+  ['/api/inquiries', new Set(['POST'])],
+  ['/api/qr', new Set(['GET'])],
+  ['/api/settings/public', new Set(['GET'])],
+  ['/api/site-config', new Set(['GET'])],
 ])
 
 function base64UrlDecode(value: string) {
@@ -43,45 +60,9 @@ async function verifyAccessTokenEdge(token: string) {
   }
 }
 
-/**
- * بررسی محافظت CSRF برای متدهای غیر-GET
- * SameSite=Lax از cross-site POST محافظت می‌کند،
- * ولی برای اطمینان بیشتر، Origin/Referer بررسی می‌شود
- */
-function isCsrfSafe(req: NextRequest): boolean {
-  // GET/HEAD/OPTIONS نیازی به CSRF ندارند
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return true
-
-  const origin = req.headers.get('origin')
-  const referer = req.headers.get('referer')
-
-  // اگر هیچکدام وجود نداشت، اجازه می‌دهیم (API clients بدون header)
-  if (!origin && !referer) return true
-
-  const host = req.headers.get('host')
-  if (!host) return true
-
-  // بررسی تطابق Origin با Host
-  if (origin) {
-    try {
-      const originHost = new URL(origin).host
-      return originHost === host
-    } catch {
-      return false
-    }
-  }
-
-  // بررسی Referer
-  if (referer) {
-    try {
-      const refererHost = new URL(referer).host
-      return refererHost === host
-    } catch {
-      return false
-    }
-  }
-
-  return true
+function isPublicRoute(path: string, method: string) {
+  const methods = PUBLIC_ROUTES.get(path)
+  return methods ? methods.has(method) : false
 }
 
 export async function middleware(req: NextRequest) {
@@ -98,8 +79,8 @@ export async function middleware(req: NextRequest) {
     )
   }
 
-  // Endpoint‌های عمومی
-  if (PUBLIC_EXACT.has(path)) return NextResponse.next()
+  // Endpointهای عمومی (با تفکیک متد)
+  if (isPublicRoute(path, req.method)) return NextResponse.next()
 
   // محصولات و دسته‌بندی: GET عمومی، سایر متدها محافظت‌شده
   if (path === '/api/products' || path === '/api/categories') {

@@ -4,6 +4,8 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { searchStones } from '@/lib/search'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
+import { getViewer } from '@/lib/auth'
 
 /**
  * GET /api/search — جستجوی محصولات
@@ -16,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   // محدودیت نرخ جستجو
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(req)
   const limited = await rateLimit(`search:${ip}`, 30, 60)
   if (!limited.allowed) {
     return NextResponse.json(
@@ -27,7 +29,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || 24), 100)
-    const result = await searchStones(q, limit)
+    const viewer = await getViewer(req)
+    const result = await searchStones(q, limit, { restrictPrices: !viewer.isAuthenticated })
 
     return NextResponse.json({
       success: true,

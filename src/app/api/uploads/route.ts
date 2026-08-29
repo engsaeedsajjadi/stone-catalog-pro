@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { rateLimit } from "@/lib/rate-limit"
 import { requireAuth } from "@/lib/auth"
+import { getClientIp, isContentTooLarge } from "@/lib/request"
 
 import {
   storeImage,
@@ -35,12 +36,7 @@ export async function POST(
     > | null = null
 
   try {
-    const ip =
-      req.headers
-        .get("x-forwarded-for")
-        ?.split(",")[0]
-        ?.trim() ||
-      "unknown"
+    const ip = getClientIp(req)
 
     const limited =
       await rateLimit(
@@ -58,6 +54,21 @@ export async function POST(
         },
         {
           status: 429,
+        }
+      )
+    }
+
+    const maxUploadBytes =
+      Number(process.env.MAX_UPLOAD_MB || 15) * 1024 * 1024
+
+    if (isContentTooLarge(req, maxUploadBytes + 1024 * 1024)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "حجم فایل ارسالی بیش از حد مجاز است",
+        },
+        {
+          status: 413,
         }
       )
     }

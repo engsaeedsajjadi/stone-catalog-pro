@@ -7,9 +7,25 @@ import { Prisma } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
 import { serializeStones } from '@/lib/stone-serialize'
+import { getViewer } from '@/lib/auth'
+import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 export async function GET(req: NextRequest) {
   try {
+    // محدودیت نرخ برای درخواست‌های عمومیِ لیست محصولات
+    const limited = await rateLimit(`products:${getClientIp(req)}`, 120, 60)
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
+        { status: 429 }
+      )
+    }
+
+    // بازدیدکننده‌ی ناشناس فقط لایه‌های قیمتی عمومی را می‌بیند
+    const viewer = await getViewer(req)
+    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('q') || ''
     const categorySlug = searchParams.get('category')
@@ -24,8 +40,14 @@ export async function GET(req: NextRequest) {
     const minPrice = searchParams.get('minPrice')
     const maxPrice = searchParams.get('maxPrice')
     const sort = searchParams.get('sort') || 'newest'
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '24')
+    const requestedPage = parseInt(searchParams.get('page') || '1')
+    const requestedPageSize = parseInt(searchParams.get('pageSize') || '24')
+
+    // محدودسازی صفحه‌بندی برای جلوگیری از مصرف بیش از حد منابع
+    const page = Number.isFinite(requestedPage) ? Math.min(Math.max(requestedPage, 1), 10_000) : 1
+    const pageSize = Number.isFinite(requestedPageSize)
+      ? Math.min(Math.max(requestedPageSize, 1), 60)
+      : 24
 
     // TODO: پس از prisma generate، از Prisma.StoneWhereInput استفاده شود
     const where: Prisma.StoneWhereInput = {}
@@ -124,7 +146,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        data: serializeStones(pagedStones),
+        data: serializeStones(pagedStones, serializeOptions),
         pagination: {
           page,
           pageSize,
@@ -157,7 +179,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: serializeStones(stones),
+      data: serializeStones(stones, serializeOptions),
       pagination: {
         page,
         pageSize,

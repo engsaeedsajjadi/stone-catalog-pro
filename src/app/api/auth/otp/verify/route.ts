@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { hashPassword, hashToken, issueAccessToken, issueRefreshToken, REFRESH_TTL_MS } from '@/lib/security'
 import { setAuthCookies } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 /**
  * تایید OTP و ورود کاربر
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     // محدودیت نرخ برای تلاش تایید
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(req)
     const limited = await rateLimit(`otp-verify:${ip}:${target}`, 5, 300)
     if (!limited.allowed) {
       return NextResponse.json(
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       user = await db.user.create({
         data: {
           email: userEmail,
-          password: hashPassword(crypto.randomUUID()),
+          password: await hashPassword(crypto.randomUUID()),
           name: target,
           phone: channel === 'SMS' ? target : undefined,
           role: 'OPERATOR',
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         tokenHash: hashToken(refresh),
         expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
-        ipAddress: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined,
+        ipAddress: ip,
         userAgent: req.headers.get('user-agent') || undefined,
       },
     })

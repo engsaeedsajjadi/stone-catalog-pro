@@ -6,6 +6,17 @@ import * as XLSX from 'xlsx'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
+import { isContentTooLarge } from '@/lib/request'
+
+/**
+ * محدودیت‌های ایمپورت
+ *
+ * فایل اکسل ورودیِ کاربر است؛ هم اندازه‌ی فایل و هم ابعاد شیت
+ * محدود می‌شود تا پردازش یک فایل مخرب سرور را مشغول نکند.
+ */
+const MAX_EXCEL_BYTES = 10 * 1024 * 1024
+const MAX_ROWS = 5000
+const MAX_COLUMNS = 60
 
 const exportHeaders = ['کد محصول','نام','نام انگلیسی','دسته‌بندی','معدن','رنگ','ضخامت','عرض','طول','وزن','جذب آب','مقاومت فشاری','مقاومت سایشی','قیمت هر متر مربع (ریال)','قیمت هر اسلب (ریال)','قیمت صادراتی (USD)','تعداد اسلب','متراژ کل','متراژ موجود','وضعیت']
 
@@ -251,16 +262,40 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN', 'SALES_MANAGER'])
   if ('response' in auth) return auth.response
   try {
+    if (isContentTooLarge(req, MAX_EXCEL_BYTES)) {
+      return NextResponse.json(
+        { success: false, error: 'حجم فایل بیش از حد مجاز است (حداکثر ۱۰ مگابایت)' },
+        { status: 413 }
+      )
+    }
+
     const form = await req.formData()
     const file = form.get('file')
     const requestedMode = normalize(form.get('mode') || '')
     if (!(file instanceof File)) return NextResponse.json({success:false,error:'فایل Excel ارسال نشده است'},{status:400})
 
+    if (file.size > MAX_EXCEL_BYTES) {
+      return NextResponse.json(
+        { success: false, error: 'حجم فایل بیش از حد مجاز است (حداکثر ۱۰ مگابایت)' },
+        { status: 413 }
+      )
+    }
+
     const buffer=Buffer.from(await file.arrayBuffer())
-    const wb=XLSX.read(buffer,{type:'buffer'})
+
+    // غیرفعال کردن فرمول/HTML/استایل: سطح حمله‌ی پارسر را کوچک می‌کند
+    const wb=XLSX.read(buffer,{type:'buffer',cellFormula:false,cellHTML:false,cellStyles:false})
     const ws=wb.Sheets[wb.SheetNames[0]]
-    const rows=XLSX.utils.sheet_to_json<any[]>(ws,{header:1,defval:'',raw:true})
-    if(rows.length<1) return NextResponse.json({success:false,error:'فایل خالی است'},{status:400})
+    if(!ws) return NextResponse.json({success:false,error:'شیت معتبری در فایل وجود ندارد'},{status:400})
+
+    const rawRows=XLSX.utils.sheet_to_json<any[]>(ws,{header:1,defval:'',raw:true})
+    if(rawRows.length<1) return NextResponse.json({success:false,error:'فایل خالی است'},{status:400})
+
+    const truncatedRows = rawRows.length > MAX_ROWS
+    const rows = rawRows
+      .slice(0, MAX_ROWS)
+      .map((row: any[]) => (Array.isArray(row) ? row.slice(0, MAX_COLUMNS) : []))
+    if(truncatedRows) console.warn(`Excel import truncated to ${MAX_ROWS} rows`)
 
     // Detect the import type from the Excel headers when the UI does not
     // explicitly send a mode. This prevents the full Product template from

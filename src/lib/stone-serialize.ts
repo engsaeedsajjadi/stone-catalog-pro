@@ -31,12 +31,36 @@ function flattenInventory(inventory: unknown): AnyRecord | null {
 }
 
 /**
+ * لایه‌های قیمتی که برای بازدیدکننده‌ی عمومی قابل نمایش هستند.
+ *
+ * قیمت‌هایی مثل WHOLESALE / PARTNER / PROJECT فقط برای کاربران
+ * واردشده ارسال می‌شوند.
+ */
+export const PUBLIC_PRICE_TYPES = ['PER_SQM', 'PER_SLAB', 'EXPORT']
+
+export type SerializeOptions = {
+  /** حذف لایه‌های قیمتی غیرعمومی */
+  restrictPrices?: boolean
+}
+
+/**
  * تبدیل یک رکورد محصول به فرم استاندارد خروجی API
  */
-export function serializeStone<T extends AnyRecord>(stone: T) {
+export function serializeStone<T extends AnyRecord>(
+  stone: T,
+  options: SerializeOptions = {}
+) {
   if (!stone) return stone
+
+  const prices = Array.isArray(stone.prices) ? stone.prices : undefined
+  const visiblePrices =
+    options.restrictPrices && prices
+      ? prices.filter((price: AnyRecord) => PUBLIC_PRICE_TYPES.includes(String(price?.type)))
+      : prices
+
   return {
     ...stone,
+    ...(prices ? { prices: visiblePrices } : {}),
     inventory: flattenInventory(stone.inventory),
   }
 }
@@ -44,8 +68,11 @@ export function serializeStone<T extends AnyRecord>(stone: T) {
 /**
  * نگاشت لیستی از محصولات
  */
-export function serializeStones<T extends AnyRecord>(stones: readonly T[]) {
-  return stones.map((stone) => serializeStone(stone))
+export function serializeStones<T extends AnyRecord>(
+  stones: readonly T[],
+  options: SerializeOptions = {}
+) {
+  return stones.map((stone) => serializeStone(stone, options))
 }
 
 /**
