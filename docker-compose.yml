@@ -19,6 +19,20 @@ services:
     volumes:
       - redis_data:/data
 
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    environment:
+      DATABASE_URL: postgresql://stone:stone@db:5432/stone_catalog?schema=public
+      REDIS_URL: redis://redis:6379
+      # در فایل .env کنار همین فایل مقداردهی شود
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET را در فایل .env تنظیم کنید}
+
   app:
     build: .
     restart: unless-stopped
@@ -31,7 +45,8 @@ services:
       DATABASE_URL: postgresql://stone:stone@db:5432/stone_catalog?schema=public
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       APP_URL: http://localhost:3000
-      JWT_SECRET: change-this-in-production
+      # در فایل .env کنار همین فایل مقداردهی شود
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET را در فایل .env تنظیم کنید}
       STORAGE_PROVIDER: local
       REDIS_URL: redis://redis:6379
       UPLOAD_DIR: /app/storage/uploads

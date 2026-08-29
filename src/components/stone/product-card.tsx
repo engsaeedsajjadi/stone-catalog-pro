@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Heart, GitCompare, Eye, Share2, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getInventory } from '@/lib/stone-serialize'
 import { motion } from 'framer-motion'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,7 +20,7 @@ export function ProductCard({ stone }: { stone: any }) {
   const image = stone.images?.[0] as any
   const priceSqm = stone.prices?.find((p: any) => p.type === 'PER_SQM' && p.currency === 'IRR')
   const priceExport = stone.prices?.find((p: any) => p.type === 'EXPORT' && p.currency === 'USD')
-  const inv = stone.inventory
+  const inv = getInventory(stone)
 
   const isFav = favorites.includes(stone.id)
   const isCompared = compareList.includes(stone.id)

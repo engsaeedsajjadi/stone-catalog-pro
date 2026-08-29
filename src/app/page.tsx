@@ -11,22 +11,13 @@ import { LoginPage } from '@/components/public/login-page'
 import { AdminPage } from '@/components/admin/admin-page'
 import { Toaster as SonnerToaster } from 'sonner'
 import { useSiteConfig } from '@/components/public/site-runtime'
+import { BlockRenderer } from '@/components/public/blocks/block-renderer'
 
 export default function Home() {
-  const { route, navigate, isExhibitionMode, lang } = useAppStore()
+  const { route, isExhibitionMode, lang } = useAppStore()
 
   // Handle URL params (deep linking for product view, search, etc.)
   useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{}) }, [])
-
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    const productParam = url.searchParams.get('product')
-    const qParam = url.searchParams.get('q')
-    const langParam = url.searchParams.get('lang')
-
-    if (productParam) navigate('product', { id: productParam })
-    else if (qParam) navigate('catalog', { q: qParam })
-  }, [])
 
   // Update document direction and language when language changes
   useEffect(() => {
@@ -86,11 +77,11 @@ function FavoritesPage() {
 
 function AboutPage() {
   const { navigate } = useAppStore(); const site=useSiteConfig(); const page=site.pages.about
-  return <div className="min-h-screen"><section className="py-20 text-white" style={{background:'linear-gradient(135deg,var(--site-secondary),var(--site-primary))'}}><div className="container mx-auto px-4 max-w-4xl text-center"><h1 className="text-4xl md:text-5xl font-black mb-5">{page?.title||site.brand.nameFa||site.brand.nameEn||''}</h1><p className="text-lg text-white/80">{site.brand.taglineFa||site.brand.taglineEn||''}</p></div></section><div className="container mx-auto px-4 py-12 space-y-8">{page?.blocks.filter(b=>b.enabled).map(b=><Card key={b.id} className="p-8"><h2 className="text-2xl font-bold mb-4">{b.title}</h2><p className="leading-8 whitespace-pre-wrap text-muted-foreground">{String(b.data?.body||'')}</p>{b.imageUrl&&<img src={b.imageUrl} alt={b.title||''} className="mt-6 rounded-2xl w-full max-h-[520px] object-cover"/>}</Card>)}{(!page||page.blocks.filter(b=>b.enabled).length===0)&&<Card className="p-10 text-center border-dashed"><p className="text-muted-foreground">این صفحه هنوز توسط مدیر سایت تکمیل نشده است.</p></Card>}<div className="flex gap-3"><button onClick={()=>navigate('contact')} className="bg-primary text-primary-foreground px-5 py-3 rounded-lg">تماس با ما</button><button onClick={()=>navigate('catalog')} className="border px-5 py-3 rounded-lg">مشاهده کاتالوگ</button></div></div></div>
+  return <div className="min-h-screen"><section className="py-20 text-white" style={{background:'linear-gradient(135deg,var(--site-secondary),var(--site-primary))'}}><div className="container mx-auto px-4 max-w-4xl text-center"><h1 className="text-4xl md:text-5xl font-black mb-5">{page?.title||site.brand.nameFa||site.brand.nameEn||''}</h1><p className="text-lg text-white/80">{site.brand.taglineFa||site.brand.taglineEn||''}</p></div></section><div className="py-12"><BlockRenderer blocks={page?.blocks||[]} emptyMessage="این صفحه هنوز توسط مدیر سایت تکمیل نشده است." /></div><div className="container mx-auto px-4 pb-12"><div className="flex gap-3"><button onClick={()=>navigate('contact')} className="bg-primary text-primary-foreground px-5 py-3 rounded-lg">تماس با ما</button><button onClick={()=>navigate('catalog')} className="border px-5 py-3 rounded-lg">مشاهده کاتالوگ</button></div></div></div>
 }
 
 function ContactPage() {
-  const site=useSiteConfig()
+  const site=useSiteConfig(); const page=site.pages.contact
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -102,7 +93,7 @@ function ContactPage() {
       e.currentTarget.reset(); setMessage('پیام شما ثبت شد و توسط تیم فروش پیگیری خواهد شد.')
     } catch (err) { setMessage(err instanceof Error ? err.message : 'خطا در ارسال') } finally { setSubmitting(false) }
   }
-  return <div className="min-h-screen"><div className="bg-gradient-to-br from-brand-950 to-brand-700 text-white py-16"><div className="container mx-auto px-4"><h1 className="text-4xl font-black">تماس با ما</h1><p className="text-white/70 mt-2">اطلاعات تماس در سامانه مدیریت می‌شود.</p></div></div><div className="container mx-auto px-4 py-12 max-w-3xl"><Card className="p-7"><form className="space-y-5" onSubmit={submit}><div className="grid md:grid-cols-2 gap-4"><div><label className="block text-sm mb-2">نام و نام خانوادگی</label><input name="name" required className="w-full rounded-lg border px-3 py-2" /></div><div><label className="block text-sm mb-2">شماره تماس</label><input name="phone" required className="w-full rounded-lg border px-3 py-2" dir="ltr" /></div></div><div><label className="block text-sm mb-2">ایمیل</label><input name="email" type="email" className="w-full rounded-lg border px-3 py-2" dir="ltr" /></div><div><label className="block text-sm mb-2">پیام</label><textarea name="message" required rows={6} className="w-full rounded-lg border px-3 py-2" /></div><button disabled={submitting} className="bg-primary text-primary-foreground px-6 py-3 rounded-lg">{submitting ? 'در حال ارسال...' : 'ثبت درخواست'}</button>{message && <p className="text-sm text-muted-foreground">{message}</p>}</form></Card></div></div>
+  return <div className="min-h-screen"><div className="bg-gradient-to-br from-brand-950 to-brand-700 text-white py-16"><div className="container mx-auto px-4"><h1 className="text-4xl font-black">تماس با ما</h1><p className="text-white/70 mt-2">اطلاعات تماس در سامانه مدیریت می‌شود.</p></div></div>{(page?.blocks||[]).length>0&&<BlockRenderer blocks={page?.blocks||[]} emptyMessage="" />}<div className="container mx-auto px-4 py-12 max-w-3xl"><Card className="p-7"><form className="space-y-5" onSubmit={submit}><div className="grid md:grid-cols-2 gap-4"><div><label className="block text-sm mb-2">نام و نام خانوادگی</label><input name="name" required className="w-full rounded-lg border px-3 py-2" /></div><div><label className="block text-sm mb-2">شماره تماس</label><input name="phone" required className="w-full rounded-lg border px-3 py-2" dir="ltr" /></div></div><div><label className="block text-sm mb-2">ایمیل</label><input name="email" type="email" className="w-full rounded-lg border px-3 py-2" dir="ltr" /></div><div><label className="block text-sm mb-2">پیام</label><textarea name="message" required rows={6} className="w-full rounded-lg border px-3 py-2" /></div><button disabled={submitting} className="bg-primary text-primary-foreground px-6 py-3 rounded-lg">{submitting ? 'در حال ارسال...' : 'ثبت درخواست'}</button>{message && <p className="text-sm text-muted-foreground">{message}</p>}</form></Card></div></div>
 }
 
 function ExhibitionMode() {

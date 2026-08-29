@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { buildAppUrl, parseAppLocation, sameParams } from '@/lib/app-url'
 
 // ============ TYPES ============
 export type Language = 'fa' | 'en' | 'ar' | 'ru' | 'tr'
@@ -25,7 +26,17 @@ interface AppState {
   // SPA router state
   route: string
   params: Record<string, string>
-  navigate: (route: string, params?: Record<string, string>) => void
+  navigate: (
+    route: string,
+    params?: Record<string, string>,
+    options?: { replace?: boolean }
+  ) => void
+  /** اعمال وضعیت از روی URL (برای برگشت/جلو و لینک‌های عمیق) */
+  applyLocation: (href: string) => void
+
+  // data freshness — بعد از هر تغییر داده در پنل، تب‌ها تازه می‌شوند
+  dataVersion: number
+  invalidateData: () => void
 
   // cart/compare
   compareList: string[]
@@ -48,6 +59,8 @@ interface AppState {
 // ============ TRANSLATIONS ============
 const translations: Record<Language, Record<string, string>> = {
   fa: {
+    'brand.name': 'کاتالوگ سنگ',
+    'brand.tagline': 'مرجع تخصصی سنگ',
     'nav.home': 'خانه',
     'nav.catalog': 'کاتالوگ',
     'nav.categories': 'دسته‌بندی‌ها',
@@ -159,6 +172,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'در حال تولید',
   },
   en: {
+    'brand.name': 'Stone Catalog',
+    'brand.tagline': 'Specialized stone catalog',
     'nav.home': 'Home',
     'nav.catalog': 'Catalog',
     'nav.categories': 'Categories',
@@ -270,6 +285,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'In Production',
   },
   ar: {
+    'brand.name': 'كتالوج الأحجار',
+    'brand.tagline': 'المرجع المتخصص للأحجار',
     'nav.home': 'الرئيسية',
     'nav.catalog': 'الكتالوج',
     'nav.categories': 'الفئات',
@@ -381,6 +398,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'قيد الإنتاج',
   },
   ru: {
+    'brand.name': 'Каталог камня',
+    'brand.tagline': 'Специализированный каталог камня',
     'nav.home': 'Главная',
     'nav.catalog': 'Каталог',
     'nav.categories': 'Категории',
@@ -492,6 +511,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.inProduction': 'В производстве',
   },
   tr: {
+    'brand.name': 'Taş Kataloğu',
+    'brand.tagline': 'Uzman taş kataloğu',
     'nav.home': 'Ana Sayfa',
     'nav.catalog': 'Katalog',
     'nav.categories': 'Kategoriler',
@@ -643,12 +664,58 @@ export const useAppStore = create<AppState>()(
 
       route: 'home',
       params: {},
-      navigate: (route, params = {}) => {
+
+      /**
+       * جابه‌جایی بین صفحاتِ SPA
+       *
+       * - تغییر route  => pushState (یک ورودی تازه در تاریخچه مرورگر)
+       * - تغییر پارامتر همان route (فیلترها، تب ادمین) => replaceState
+       *   تا تاریخچه با ده‌ها ورودیِ فیلتر شلوغ نشود
+       */
+      navigate: (route, params = {}, options = {}) => {
+        if (typeof window !== 'undefined') {
+          const target = buildAppUrl(route, params)
+          const current = window.location.pathname + window.location.search
+          const sameRoute = get().route === route
+
+          if (target !== current) {
+            const historyState = { stoneRoute: route, stoneParams: params }
+            try {
+              if (options.replace ?? sameRoute) {
+                window.history.replaceState(
+                  { ...(window.history.state || {}), ...historyState },
+                  '',
+                  target
+                )
+              } else {
+                window.history.pushState(historyState, '', target)
+              }
+            } catch {
+              // برخی مرورگرها/محیط‌ها اجازه‌ی دستکاری history را نمی‌دهند
+            }
+          }
+        }
+
         set({ route, params })
+
         if (typeof window !== 'undefined') {
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }
       },
+
+      applyLocation: (href) => {
+        const parsed = parseAppLocation(href)
+        if (!parsed) return
+
+        const { route, params } = get()
+        if (route === parsed.route && sameParams(params, parsed.params)) return
+
+        set({ route: parsed.route, params: parsed.params })
+      },
+
+      dataVersion: 0,
+      invalidateData: () =>
+        set((state) => ({ dataVersion: state.dataVersion + 1 })),
 
       compareList: [],
       toggleCompare: (id) => {

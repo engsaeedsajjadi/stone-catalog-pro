@@ -6,9 +6,33 @@ import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
+import { serializeStones } from '@/lib/stone-serialize'
+import { getViewer } from '@/lib/auth'
+import { emitEvent } from '@/lib/webhooks'
+import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
+
+/** سقف تعداد آیتم در هر صفحه (جلوگیری از درخواست‌های سنگین) */
+const MAX_PAGE_SIZE = 100
+
+/** بیشترین تعداد محصولی که هنگام مرتب‌سازی بر اساس قیمت در نظر گرفته می‌شود */
+const PRICE_SORT_WINDOW = 5000
 
 export async function GET(req: NextRequest) {
   try {
+    // محدودیت نرخ برای درخواست‌های عمومیِ لیست محصولات
+    const limited = await rateLimit(`products:${getClientIp(req)}`, 120, 60)
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
+        { status: 429 }
+      )
+    }
+
+    // بازدیدکننده‌ی ناشناس فقط لایه‌های قیمتی عمومی را می‌بیند
+    const viewer = await getViewer(req)
+    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+
     const { searchParams } = new URL(req.url)
     const q = searchParams.get('q') || ''
     const categorySlug = searchParams.get('category')
@@ -23,8 +47,14 @@ export async function GET(req: NextRequest) {
     const minPrice = searchParams.get('minPrice')
     const maxPrice = searchParams.get('maxPrice')
     const sort = searchParams.get('sort') || 'newest'
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '24')
+    const requestedPage = parseInt(searchParams.get('page') || '1')
+    const requestedPageSize = parseInt(searchParams.get('pageSize') || '24')
+
+    // محدودسازی صفحه‌بندی برای جلوگیری از مصرف بیش از حد منابع
+    const page = Number.isFinite(requestedPage) ? Math.min(Math.max(requestedPage, 1), 10_000) : 1
+    const pageSize = Number.isFinite(requestedPageSize)
+      ? Math.min(Math.max(requestedPageSize, 1), MAX_PAGE_SIZE)
+      : 24
 
     // TODO: پس از prisma generate، از Prisma.StoneWhereInput استفاده شود
     const where: Prisma.StoneWhereInput = {}
@@ -74,14 +104,22 @@ export async function GET(req: NextRequest) {
     if (needsPriceSort) {
       const priceOrder = sort === 'price-asc' ? 'asc' : 'desc'
 
-      // ابتدا شناسه محصولات منطبق با فیلترها را با Prisma پیدا می‌کنیم
+      /**
+       * ابتدا شناسه محصولات منطبق با فیلترها را می‌گیریم.
+       *
+       * پنجره مرتب‌سازی عمداً محدود است (PRICE_SORT_WINDOW): مرتب‌سازی بر
+       * اساس قیمت نیازمند ترکیب فیلترها با جدول قیمت است و بدون سقف،
+       * با رشد کاتالوگ کل شناسه‌ها در حافظه بارگذاری می‌شدند.
+       */
       const matchingStones = await db.stone.findMany({
         where,
         select: { id: true },
+        take: PRICE_SORT_WINDOW,
       })
 
       const matchingIds = matchingStones.map(s => s.id)
       const total = matchingIds.length
+      const truncated = total === PRICE_SORT_WINDOW
 
       if (total === 0) {
         return NextResponse.json({
@@ -113,7 +151,7 @@ export async function GET(req: NextRequest) {
           category: true,
           images: { take: 1, orderBy: { order: 'asc' } },
           prices: { where: { isActive: true } },
-          inventory: true,
+          inventory: { include: { warehouse: true } },
         },
       })
 
@@ -123,12 +161,13 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        data: pagedStones.map((stone) => ({ ...stone, inventory: stone.inventory?.[0] || null })),
+        data: serializeStones(pagedStones, serializeOptions),
         pagination: {
           page,
           pageSize,
           total,
           totalPages: Math.ceil(total / pageSize),
+          truncated,
         },
       })
     }
@@ -149,14 +188,14 @@ export async function GET(req: NextRequest) {
           category: true,
           images: { take: 1, orderBy: { order: 'asc' } },
           prices: { where: { isActive: true } },
-          inventory: true,
+          inventory: { include: { warehouse: true } },
         },
       }),
     ])
 
     return NextResponse.json({
       success: true,
-      data: stones,
+      data: serializeStones(stones, serializeOptions),
       pagination: {
         page,
         pageSize,
@@ -258,6 +297,13 @@ export async function POST(req: NextRequest) {
         userId: auth.user.id,
         newValue: `محصول جدید با کد ${stone.code} ایجاد شد`,
       },
+    })
+
+    emitEvent('product.created', {
+      id: stone.id,
+      code: stone.code,
+      name: stone.name,
+      occurredAt: new Date().toISOString(),
     })
 
     return NextResponse.json({ success: true, data: stone })

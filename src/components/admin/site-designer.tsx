@@ -44,6 +44,11 @@ import type {
   SiteConfig,
 } from "@/lib/site-config"
 
+import {
+  FEATURE_ICON_LABELS,
+  FEATURE_ICON_NAMES,
+} from "@/lib/site-blocks"
+
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -134,16 +139,53 @@ const PAGE_LABELS: Record<string, string> = {
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * داده‌های پیش‌فرض هر نوع بلوک
+ *
+ * با این مقادیر، بلوکِ تازه‌افزوده‌شده بلافاصله روی سایت قابل نمایش
+ * است و مدیر فقط متن‌ها را ویرایش می‌کند.
+ */
+const DEFAULT_BLOCK_DATA: Record<string, Record<string, unknown>> = {
+  hero: { slides: [], showSearch: true, height: "full", intervalMs: 6000 },
+  richtext: { body: "", align: "center", background: "none" },
+  "image-text": { body: "", images: [], imageMediaIds: [], reverse: false },
+  products: { source: "featured", limit: 6, alt: false },
+  categories: { limit: 6, displayType: "grid", showImages: true },
+  features: { items: [], columns: 4 },
+  stats: { items: [] },
+  gallery: { images: [], imageMediaIds: [], columns: 3 },
+  testimonials: { items: [] },
+  cta: { body: "", buttonText: "تماس با ما", buttonHref: "/contact", align: "center" },
+  contact: { body: "", showForm: true },
+  spacer: { height: 60 },
+}
+
+/**
+ * شناسه‌ی یکتا
+ *
+ * crypto.randomUUID فقط در «بافت امن» (https/localhost) در دسترس است؛
+ * برای دسترسی از طریق http روی شبکه‌ی داخلی نیاز به جایگزین داریم.
+ */
+function randomId(prefix: string) {
+  const native =
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+
+  return `${prefix}-${native}`
+}
+
 const blankBlock = (
   type: SiteBlock["type"],
   order: number
 ): SiteBlock => ({
-  id: `block-${crypto.randomUUID()}`,
+  id: randomId("block"),
   type,
   enabled: true,
   title: "",
   subtitle: "",
-  data: {},
+  data: { ...(DEFAULT_BLOCK_DATA[type] ?? {}) },
   order,
 })
 
@@ -1452,6 +1494,175 @@ function BlockEditor({
 /* Block Fields                                                               */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* Building blocks for editors                                                 */
+/* -------------------------------------------------------------------------- */
+
+type BlockItem = Record<string, unknown>
+
+function toItems(value: unknown): BlockItem[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is BlockItem => !!item && typeof item === 'object')
+}
+
+/** ویرایشگر لیستی از آیتم‌ها (افزودن، حذف، جابه‌جایی) */
+function ItemsEditor({
+  label,
+  items,
+  onChange,
+  renderItem,
+  createItem,
+  addLabel = 'افزودن آیتم',
+  max = 12,
+}: {
+  label: string
+  items: BlockItem[]
+  onChange: (items: BlockItem[]) => void
+  renderItem: (
+    item: BlockItem,
+    patch: (key: string, value: unknown) => void
+  ) => React.ReactNode
+  createItem: () => BlockItem
+  addLabel?: string
+  max?: number
+}) {
+  const patch = (index: number, key: string, value: unknown) => {
+    const next = items.map((item, i) => (i === index ? { ...item, [key]: value } : item))
+    onChange(next)
+  }
+
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= items.length) return
+    const next = [...items]
+    const [moved] = next.splice(index, 1)
+    next.splice(target, 0, moved)
+    onChange(next)
+  }
+
+  const remove = (index: number) => {
+    onChange(items.filter((_, i) => i !== index))
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <span className="text-xs text-muted-foreground">
+          {items.length} آیتم
+        </span>
+      </div>
+
+      {items.map((item, index) => (
+        <Card key={String(item.id ?? index)} className="gap-0 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-xs font-bold text-muted-foreground">
+              آیتم {index + 1}
+            </span>
+
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => move(index, -1)}
+                disabled={index === 0}
+                title="بالا"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => move(index, 1)}
+                disabled={index === items.length - 1}
+                title="پایین"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => remove(index)}
+                title="حذف"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {renderItem(item, (key, value) => patch(index, key, value))}
+        </Card>
+      ))}
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => onChange([...items, createItem()])}
+        disabled={items.length >= max}
+      >
+        <Plus className="ml-2 h-4 w-4" />
+        {addLabel}
+      </Button>
+    </div>
+  )
+}
+
+/** انتخاب تصویر (یک یا چند) با آپلودر */
+function ImagePicker({
+  label,
+  urls,
+  mediaIds,
+  onChange,
+  multiple = false,
+  max,
+}: {
+  label: string
+  urls: string[]
+  mediaIds: string[]
+  onChange: (urls: string[], mediaIds: string[]) => void
+  multiple?: boolean
+  max?: number
+}) {
+  const uploaded: UploadedImage[] = urls.map((url, index) => ({
+    id: mediaIds[index] ?? String(index),
+    url,
+    originalName: `image-${index + 1}`,
+    mimeType: 'image/*',
+    size: 0,
+  }))
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+
+      <ImageUploader
+        value={uploaded}
+        multiple={multiple}
+        maxFiles={max}
+        onChange={(items) => {
+          onChange(
+            items
+              .map((item) => item.url)
+              .filter((url): url is string => typeof url === 'string' && url.length > 0),
+            items
+              .map((item) => item.id)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          )
+        }}
+      />
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* Block Fields                                                               */
+/* -------------------------------------------------------------------------- */
+
 function BlockFields({
   block,
   update,
@@ -1476,527 +1687,643 @@ function BlockFields({
     })
   }
 
- /* ------------------------------ HERO ------------------------------------ */
-
-if (block.type === "hero") {
-  const body = getString(data.body)
-
-  const images = getStringArray(data.images)
-  const mediaIds = getStringArray(data.imageMediaIds)
-
-  const uploaded: UploadedImage[] = images.map(
-    (url, index) => ({
-      id: mediaIds[index] ?? String(index),
-      url,
-      originalName: `hero-${index + 1}`,
-      mimeType: "image/*",
-      size: 0,
+  const setUrls = (
+    urlKey: string,
+    idKey: string
+  ) => (urls: string[], ids: string[]) => {
+    update({
+      data: {
+        ...data,
+        [urlKey]: urls,
+        [idKey]: ids,
+      },
     })
-  )
+  }
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label>متن اصلی</Label>
+  /* ------------------------------ HERO ------------------------------------ */
 
-        <Textarea
-          value={body}
-          onChange={(event) =>
-            setData("body", event.target.value)
-          }
-          rows={4}
+  if (block.type === 'hero') {
+    const slides = toItems(data.slides)
+
+    return (
+      <div className="space-y-5">
+        <ItemsEditor
+          label="اسلایدها"
+          items={slides}
+          onChange={(items) => setData('slides', items)}
+          addLabel="افزودن اسلاید"
+          max={6}
+          createItem={() => ({
+            id: `slide-${Math.random().toString(36).slice(2, 9)}`,
+            image: '',
+            badge: '',
+            title: '',
+            subtitle: '',
+            ctaText: '',
+            ctaHref: '/catalog',
+          })}
+          renderItem={(item, patch) => (
+            <div className="space-y-3">
+              <ImagePicker
+                label="تصویر اسلاید"
+                urls={getString(item.image) ? [getString(item.image)] : []}
+                mediaIds={getString(item.imageMediaId) ? [getString(item.imageMediaId)] : []}
+                onChange={(urls, ids) => {
+                  patch('image', urls[0] ?? '')
+                  patch('imageMediaId', ids[0] ?? '')
+                }}
+              />
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <Label>برچسب</Label>
+                  <Input
+                    value={getString(item.badge)}
+                    onChange={(event) => patch('badge', event.target.value)}
+                    placeholder="مثال: محصولات ویژه"
+                  />
+                </div>
+
+                <div>
+                  <Label>عنوان اسلاید</Label>
+                  <Input
+                    value={getString(item.title)}
+                    onChange={(event) => patch('title', event.target.value)}
+                    placeholder="خالی = عنوان بلوک / نام برند"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>زیرعنوان اسلاید</Label>
+                <Textarea
+                  value={getString(item.subtitle)}
+                  onChange={(event) => patch('subtitle', event.target.value)}
+                  rows={2}
+                  placeholder="خالی = شعار برند"
+                />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <Label>متن دکمه</Label>
+                  <Input
+                    value={getString(item.ctaText)}
+                    onChange={(event) => patch('ctaText', event.target.value)}
+                    placeholder="مشاهده کاتالوگ"
+                  />
+                </div>
+
+                <div>
+                  <Label>لینک دکمه</Label>
+                  <Input
+                    value={getString(item.ctaHref)}
+                    onChange={(event) => patch('ctaHref', event.target.value)}
+                    placeholder="/catalog"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         />
-      </div>
 
-      <div>
-        <Label>
-          تصاویر Hero / اسلایدر
-        </Label>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div>
+            <Label>ارتفاع</Label>
+            <Select
+              value={getString(data.height, 'full')}
+              onValueChange={(value) => setData('height', value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">تمام صفحه</SelectItem>
+                <SelectItem value="large">بزرگ</SelectItem>
+                <SelectItem value="medium">متوسط</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <p className="text-xs text-muted-foreground mt-1 mb-3">
-          حداکثر ۸ تصویر برای اسلایدر صفحه اصلی انتخاب کنید.
-        </p>
+          <div>
+            <Label>زمان هر اسلاید (میلی‌ثانیه)</Label>
+            <Input
+              type="number"
+              min={2000}
+              max={20000}
+              step={500}
+              value={String(data.intervalMs ?? 6000)}
+              onChange={(event) => setData('intervalMs', Number(event.target.value))}
+            />
+          </div>
 
-        <ImageUploader
-          value={uploaded}
-          multiple={true}
-          maxFiles={8}
-          onChange={(items) => {
-            const limited = items.slice(0, 8)
-
-            setData(
-              "images",
-              limited
-                .map((item) => item.url)
-                .filter(
-                  (url): url is string =>
-                    typeof url === "string" &&
-                    url.length > 0
-                )
-            )
-
-            setData(
-              "imageMediaIds",
-              limited
-                .map((item) => item.id)
-                .filter(
-                  (id): id is string =>
-                    typeof id === "string" &&
-                    id.length > 0
-                )
-            )
-
-            setData(
-              "backgroundImage",
-              limited[0]?.url ?? ""
-            )
-          }}
-        />
-
-        <div className="mt-3 text-sm text-muted-foreground">
-          {uploaded.length > 0
-            ? `${uploaded.length} از ۸ تصویر انتخاب شده`
-            : "هنوز تصویری انتخاب نشده است"}
+          <div className="flex items-center gap-2 pt-6">
+            <Switch
+              checked={data.showSearch !== false}
+              onCheckedChange={(value) => setData('showSearch', value)}
+            />
+            <span className="text-sm">نمایش جستجو</span>
+          </div>
         </div>
+
+        <div>
+          <Label>متن زیر دکمه‌ها (اختیاری)</Label>
+          <Textarea
+            value={getString(data.body)}
+            onChange={(event) => setData('body', event.target.value)}
+            rows={3}
+          />
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          اگر اسلایدی تعریف نشود، عنوان و شعار برند به‌طور خودکار نمایش داده می‌شود.
+        </p>
       </div>
-    </div>
-  )
-}
-/* --------------------------- IMAGE TEXT -------------------------------- */
-
-if (
-  block.type ===
-  "image-text"
-) {
-  const body = getString(
-    data.body
-  )
-
-  const images = getStringArray(
-    data.images
-  )
-
-  const mediaIds = getStringArray(
-    data.imageMediaIds
-  )
-
-  /*
-   * Backward compatibility:
-   * اگر قبلاً فقط یک imageUrl ذخیره شده،
-   * همان تصویر را به عنوان تصویر اول در نظر می‌گیریم.
-   */
-  const oldImageUrl = getImageUrl(
-    block.imageUrl ??
-      data.imageUrl
-  )
-
-  const normalizedImages =
-    images.length > 0
-      ? images
-      : oldImageUrl
-        ? [oldImageUrl]
-        : []
-
-  const normalizedMediaIds =
-    mediaIds.length > 0
-      ? mediaIds
-      : normalizedImages.map(
-          (_, index) =>
-            getString(
-              data.imageMediaId,
-              `image-text-${index}`
-            )
-        )
-
-  const uploaded: UploadedImage[] =
-    normalizedImages.map(
-      (url, index) => ({
-        id:
-          normalizedMediaIds[index] ??
-          `image-text-${index}`,
-
-        url,
-
-        originalName:
-          `image-text-${index + 1}`,
-
-        mimeType:
-          "image/*",
-
-        size: 0,
-      })
     )
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label>
-          متن
-        </Label>
-
-        <Textarea
-          value={body}
-          onChange={(event) =>
-            setData(
-              "body",
-              event.target.value
-            )
-          }
-          rows={6}
-        />
-      </div>
-
-      <div>
-        <Label>
-          تصاویر
-        </Label>
-
-        <p className="text-xs text-muted-foreground mt-1 mb-3">
-          می‌توانید حداکثر ۸ تصویر برای این بخش انتخاب کنید.
-        </p>
-
-        <ImageUploader
-          value={uploaded}
-          multiple={true}
-          maxFiles={8}
-          sortable={true}
-          onChange={(items) => {
-            const limited =
-              items.slice(0, 8)
-
-            const nextImages =
-              limited
-                .map(
-                  (item) =>
-                    item.url
-                )
-                .filter(
-                  (
-                    url
-                  ): url is string =>
-                    typeof url ===
-                      "string" &&
-                    url.length > 0
-                )
-
-            const nextMediaIds =
-              limited
-                .map(
-                  (item) =>
-                    item.id
-                )
-                .filter(
-                  (
-                    id
-                  ): id is string =>
-                    typeof id ===
-                      "string" &&
-                    id.length > 0
-                )
-
-            /*
-             * New multi-image fields.
-             */
-            setData(
-              "images",
-              nextImages
-            )
-
-            setData(
-              "imageMediaIds",
-              nextMediaIds
-            )
-
-            /*
-             * Keep the old single-image
-             * field synchronized for
-             * backward compatibility.
-             */
-            update({
-              imageUrl:
-                nextImages[0] ??
-                "",
-
-              data: {
-                ...data,
-
-                images:
-                  nextImages,
-
-                imageMediaIds:
-                  nextMediaIds,
-
-                imageUrl:
-                  nextImages[0] ??
-                  "",
-
-                imageMediaId:
-                  nextMediaIds[0] ??
-                  "",
-              },
-            })
-          }}
-        />
-
-        <div className="mt-2 text-sm text-muted-foreground">
-          {uploaded.length} از ۸ تصویر
-        </div>
-      </div>
-    </div>
-  )
-} 
+  }
 
   /* ----------------------------- PRODUCTS -------------------------------- */
 
-  if (
-    block.type ===
-    "products"
-  ) {
-    const source = getString(
-      data.source,
-      "featured"
-    )
+  if (block.type === 'products') {
+    const source = getString(data.source, 'featured')
 
     return (
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <Label>
-            منبع محصولات
-          </Label>
-
-          <Select
-            value={source}
-            onValueChange={(value) =>
-              setData(
-                "source",
-                value
-              )
-            }
-          >
+          <Label>منبع محصولات</Label>
+          <Select value={source} onValueChange={(value) => setData('source', value)}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
-
             <SelectContent>
-              <SelectItem value="featured">
-                ویژه
-              </SelectItem>
-
-              <SelectItem value="newest">
-                جدیدترین
-              </SelectItem>
-
-              <SelectItem value="bestseller">
-                پرفروش
-              </SelectItem>
-
-              <SelectItem value="export">
-                صادراتی
-              </SelectItem>
+              <SelectItem value="featured">ویژه</SelectItem>
+              <SelectItem value="newest">جدیدترین</SelectItem>
+              <SelectItem value="bestseller">پرفروش</SelectItem>
+              <SelectItem value="export">صادراتی</SelectItem>
+              <SelectItem value="latest">همه محصولات</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div>
-          <Label>
-            تعداد نمایش
-          </Label>
-
+          <Label>تعداد نمایش</Label>
           <Input
             type="number"
+            min={1}
+            max={24}
             value={String(data.limit ?? 6)}
-            onChange={(e) =>
-              setData("limit", Number(e.target.value))
-            }
+            onChange={(event) => setData('limit', Number(event.target.value))}
           />
         </div>
 
-        <div className="md:col-span-2 flex items-center gap-2">
+        <div className="flex items-center gap-2 md:col-span-2">
           <Switch
-            checked={
-              Boolean(data.alt)
-            }
-            onCheckedChange={(value) =>
-              setData(
-                "alt",
-                value
-              )
-            }
+            checked={Boolean(data.alt)}
+            onCheckedChange={(value) => setData('alt', value)}
           />
-
-          <span>
-            پس‌زمینه متفاوت
-          </span>
+          <span className="text-sm">پس‌زمینه تیره</span>
         </div>
       </div>
     )
   }
 
-  /* ------------------------- RICHTEXT / CTA ------------------------------ */
+  /* ---------------------------- CATEGORIES -------------------------------- */
 
-  if (
-    block.type ===
-      "richtext" ||
-    block.type === "cta"
-  ) {
+  if (block.type === 'categories') {
     return (
-      <div>
-        <Label>
-          متن
-        </Label>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <Label>نوع نمایش</Label>
+          <Select
+            value={getString(data.displayType, 'grid')}
+            onValueChange={(value) => setData('displayType', value)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="grid">شبکه‌ای</SelectItem>
+              <SelectItem value="list">لیستی</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Textarea
-          value={getString(
-            data.body
+        <div>
+          <Label>تعداد نمایش</Label>
+          <Input
+            type="number"
+            min={1}
+            max={24}
+            value={String(data.limit ?? 6)}
+            onChange={(event) => setData('limit', Number(event.target.value))}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 md:col-span-2">
+          <Switch
+            checked={data.showImages !== false}
+            onCheckedChange={(value) => setData('showImages', value)}
+          />
+          <span className="text-sm">نمایش تصاویر</span>
+        </div>
+      </div>
+    )
+  }
+
+  /* ----------------------------- FEATURES -------------------------------- */
+
+  if (block.type === 'features') {
+    const items = toItems(data.items)
+
+    return (
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <Label>تعداد ستون</Label>
+            <Select
+              value={String(data.columns ?? 4)}
+              onValueChange={(value) => setData('columns', Number(value))}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2">۲ ستون</SelectItem>
+                <SelectItem value="3">۳ ستون</SelectItem>
+                <SelectItem value="4">۴ ستون</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <ItemsEditor
+          label="ویژگی‌ها"
+          items={items}
+          onChange={(next) => setData('items', next)}
+          addLabel="افزودن ویژگی"
+          max={12}
+          createItem={() => ({
+            id: `feature-${Math.random().toString(36).slice(2, 9)}`,
+            icon: 'Sparkles',
+            title: '',
+            desc: '',
+          })}
+          renderItem={(item, patch) => (
+            <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <Label>آیکون</Label>
+                  <Select
+                    value={getString(item.icon, 'Sparkles')}
+                    onValueChange={(value) => patch('icon', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FEATURE_ICON_NAMES.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {FEATURE_ICON_LABELS[name] ?? name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>عنوان</Label>
+                  <Input
+                    value={getString(item.title)}
+                    onChange={(event) => patch('title', event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>توضیح</Label>
+                <Textarea
+                  value={getString(item.desc)}
+                  onChange={(event) => patch('desc', event.target.value)}
+                  rows={2}
+                />
+              </div>
+            </div>
           )}
-          onChange={(event) =>
-            setData(
-              "body",
-              event.target.value
-            )
-          }
-          rows={6}
         />
       </div>
     )
   }
 
-  /* ------------------------------ FEATURES ------------------------------- */
+  /* ------------------------------- STATS --------------------------------- */
 
-  if (
-    block.type ===
-      "features" ||
-    block.type === "stats" ||
-    block.type ===
-      "testimonials"
-  ) {
-    const items =
-      Array.isArray(data.items)
-        ? data.items
-        : []
-
-    const handleItemsChange = (value: string) => {
-      try {
-        const parsed = JSON.parse(value)
-        if (Array.isArray(parsed)) {
-          setData("items", parsed)
-        }
-      } catch {
-        // JSON ناقص است؛ تغییر را ذخیره نمی‌کنیم
-      }
-    }
+  if (block.type === 'stats') {
+    const items = toItems(data.items)
 
     return (
-      <div>
-        <Label>
-          آیتم‌ها (JSON)
-        </Label>
+      <ItemsEditor
+        label="آمارها"
+        items={items}
+        onChange={(next) => setData('items', next)}
+        addLabel="افزودن آمار"
+        max={8}
+        createItem={() => ({
+          id: `stat-${Math.random().toString(36).slice(2, 9)}`,
+          value: '',
+          label: '',
+          sub: '',
+        })}
+        renderItem={(item, patch) => (
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label>مقدار</Label>
+              <Input
+                value={getString(item.value)}
+                onChange={(event) => patch('value', event.target.value)}
+                placeholder="۲۵۰+"
+              />
+            </div>
 
-        <Textarea
-          value={JSON.stringify(
-            items,
-            null,
-            2
-          )}
-          onChange={(event) =>
-            handleItemsChange(event.target.value)
-          }
-          rows={8}
-          dir="ltr"
-        />
+            <div>
+              <Label>برچسب</Label>
+              <Input
+                value={getString(item.label)}
+                onChange={(event) => patch('label', event.target.value)}
+                placeholder="محصول"
+              />
+            </div>
 
-        <p className="text-xs text-muted-foreground mt-1">
-          این بخش تنها محتوای ساختاریافته است؛ HTML/Script اجرا نمی‌شود.
-        </p>
-      </div>
+            <div>
+              <Label>توضیح کوتاه</Label>
+              <Input
+                value={getString(item.sub)}
+                onChange={(event) => patch('sub', event.target.value)}
+              />
+            </div>
+          </div>
+        )}
+      />
+    )
+  }
+
+  /* --------------------------- TESTIMONIALS ------------------------------- */
+
+  if (block.type === 'testimonials') {
+    const items = toItems(data.items)
+
+    return (
+      <ItemsEditor
+        label="نظرات مشتریان"
+        items={items}
+        onChange={(next) => setData('items', next)}
+        addLabel="افزودن نظر"
+        max={12}
+        createItem={() => ({
+          id: `testimonial-${Math.random().toString(36).slice(2, 9)}`,
+          name: '',
+          role: '',
+          quote: '',
+          rating: 5,
+        })}
+        renderItem={(item, patch) => (
+          <div className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <Label>نام</Label>
+                <Input
+                  value={getString(item.name)}
+                  onChange={(event) => patch('name', event.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>سمت / شرکت</Label>
+                <Input
+                  value={getString(item.role)}
+                  onChange={(event) => patch('role', event.target.value)}
+                />
+              </div>
+
+              <div>
+                <Label>امتیاز (۰ تا ۵)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={5}
+                  value={String(item.rating ?? 5)}
+                  onChange={(event) => patch('rating', Number(event.target.value))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>متن نظر</Label>
+              <Textarea
+                value={getString(item.quote)}
+                onChange={(event) => patch('quote', event.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+        )}
+      />
     )
   }
 
   /* ------------------------------ GALLERY -------------------------------- */
 
-  if (
-    block.type ===
-    "gallery"
-  ) {
-    const images =
-      getStringArray(
-        data.images
-      )
-
-    const mediaIds =
-      getStringArray(
-        data.imageMediaIds
-      )
-
-    const uploaded: UploadedImage[] =
-      images.map(
-        (
-          url,
-          index
-        ) => ({
-          id:
-            mediaIds[index] ??
-            String(index),
-          url,
-          originalName: `gallery-${
-            index + 1
-          }`,
-          mimeType:
-            "image/*",
-          size: 0,
-        })
-      )
-
+  if (block.type === 'gallery') {
     return (
-      <div>
-        <Label>
-          تصاویر گالری
-        </Label>
-
-        <ImageUploader
-          value={uploaded}
+      <div className="space-y-4">
+        <ImagePicker
+          label="تصاویر گالری"
+          urls={getStringArray(data.images)}
+          mediaIds={getStringArray(data.imageMediaIds)}
+          onChange={setUrls('images', 'imageMediaIds')}
           multiple
-          onChange={(items) => {
-            setData(
-              "images",
-              items
-                .map(
-                  (item) =>
-                    item.url
-                )
-                .filter(
-                  (
-                    url
-                  ): url is string =>
-                    typeof url ===
-                    "string" &&
-                    url.length >
-                      0
-                )
-            )
-
-            setData(
-              "imageMediaIds",
-              items
-                .map(
-                  (item) =>
-                    item.id
-                )
-                .filter(
-                  (
-                    id
-                  ): id is string =>
-                    typeof id ===
-                    "string" &&
-                    id.length >
-                      0
-                )
-            )
-          }}
+          max={24}
         />
 
-        <div className="mt-2 text-sm text-muted-foreground">
-          {uploaded.length > 0 ? `${uploaded.length} تصویر آپلود شده` : "هیچ تصویری انتخاب نشده است"}
+        <div>
+          <Label>تعداد ستون</Label>
+          <Select
+            value={String(data.columns ?? 3)}
+            onValueChange={(value) => setData('columns', Number(value))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2">۲ ستون</SelectItem>
+              <SelectItem value="3">۳ ستون</SelectItem>
+              <SelectItem value="4">۴ ستون</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    )
+  }
+
+  /* ------------------------------- CTA ----------------------------------- */
+
+  if (block.type === 'cta') {
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label>متن توضیحی</Label>
+          <Textarea
+            value={getString(data.body)}
+            onChange={(event) => setData('body', event.target.value)}
+            rows={3}
+          />
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label>متن دکمه</Label>
+            <Input
+              value={getString(data.buttonText, 'مشاهده کاتالوگ')}
+              onChange={(event) => setData('buttonText', event.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label>لینک دکمه</Label>
+            <Input
+              value={getString(data.buttonHref, '/catalog')}
+              onChange={(event) => setData('buttonHref', event.target.value)}
+              dir="ltr"
+              placeholder="/catalog"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label>تراز متن</Label>
+            <Select
+              value={getString(data.align, 'center')}
+              onValueChange={(value) => setData('align', value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="center">وسط</SelectItem>
+                <SelectItem value="start">راست</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <ImagePicker
+            label="تصویر پس‌زمینه (اختیاری)"
+            urls={getString(data.backgroundImage) ? [getString(data.backgroundImage)] : []}
+            mediaIds={[]}
+            onChange={(urls) => setData('backgroundImage', urls[0] ?? '')}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  /* ----------------------------- RICHTEXT -------------------------------- */
+
+  if (block.type === 'richtext') {
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label>متن</Label>
+          <Textarea
+            value={getString(data.body)}
+            onChange={(event) => setData('body', event.target.value)}
+            rows={6}
+          />
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label>تراز</Label>
+            <Select
+              value={getString(data.align, 'center')}
+              onValueChange={(value) => setData('align', value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="center">وسط</SelectItem>
+                <SelectItem value="start">راست</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>پس‌زمینه</Label>
+            <Select
+              value={getString(data.background, 'none')}
+              onValueChange={(value) => setData('background', value)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">ساده</SelectItem>
+                <SelectItem value="muted">ملایم</SelectItem>
+                <SelectItem value="dark">تیره</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ---------------------------- IMAGE + TEXT ------------------------------ */
+
+  if (block.type === 'image-text') {
+    return (
+      <div className="space-y-4">
+        <div>
+          <Label>متن</Label>
+          <Textarea
+            value={getString(data.body)}
+            onChange={(event) => setData('body', event.target.value)}
+            rows={6}
+          />
+        </div>
+
+        <ImagePicker
+          label="تصویر"
+          urls={getStringArray(data.images)}
+          mediaIds={getStringArray(data.imageMediaIds)}
+          onChange={setUrls('images', 'imageMediaIds')}
+        />
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <Label>متن دکمه (اختیاری)</Label>
+            <Input
+              value={getString(data.ctaText)}
+              onChange={(event) => setData('ctaText', event.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label>لینک دکمه</Label>
+            <Input
+              value={getString(data.ctaHref, '/catalog')}
+              onChange={(event) => setData('ctaHref', event.target.value)}
+              dir="ltr"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={Boolean(data.reverse)}
+            onCheckedChange={(value) => setData('reverse', value)}
+          />
+          <span className="text-sm">قرارگیری تصویر در سمت چپ</span>
         </div>
       </div>
     )
@@ -2004,117 +2331,55 @@ if (
 
   /* ------------------------------ CONTACT -------------------------------- */
 
-  if (
-    block.type ===
-    "contact"
-  ) {
+  if (block.type === 'contact') {
     return (
-      <div className="space-y-3">
-        <Label>
-          متن تماس
-        </Label>
+      <div className="space-y-4">
+        <div>
+          <Label>متن معرفی</Label>
+          <Textarea
+            value={getString(data.body)}
+            onChange={(event) => setData('body', event.target.value)}
+            rows={4}
+          />
+        </div>
 
-        <Textarea
-          value={getString(
-            data.body
-          )}
-          onChange={(event) =>
-            setData(
-              "body",
-              event.target.value
-            )
-          }
-          rows={5}
-        />
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={data.showForm !== false}
+            onCheckedChange={(value) => setData('showForm', value)}
+          />
+          <span className="text-sm">نمایش فرم تماس</span>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          شماره تماس، ایمیل و آدرس به‌طور خودکار از بخش «برند و اطلاعات کسب‌وکار» خوانده می‌شود.
+        </p>
       </div>
     )
   }
 
   /* ------------------------------ SPACER --------------------------------- */
 
-  if (
-    block.type ===
-    "spacer"
-  ) {
+  if (block.type === 'spacer') {
     return (
       <div>
-        <Label>
-          ارتفاع (پیکسل)
-        </Label>
-
+        <Label>ارتفاع (پیکسل)</Label>
         <Input
           type="number"
+          min={0}
+          max={400}
           value={String(data.height ?? 50)}
-          onChange={(e) =>
-            setData("height", Number(e.target.value))
-          }
+          onChange={(event) => setData('height', Number(event.target.value))}
         />
 
-        <div className="mt-2 text-sm text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           این بلوک برای ایجاد فاصله بین بخش‌های صفحه استفاده می‌شود.
-        </div>
+        </p>
       </div>
     )
   }
 
-  /* ----------------------------- CATEGORIES ----------------------------- */
-
-  if (block.type === "categories") {
-    const displayType = getString(data.displayType, "grid")
-
-    return (
-      <div className="grid md:grid-cols-2 gap-4">
-        <div>
-          <Label>
-            نوع نمایش
-          </Label>
-
-          <Select
-            value={displayType}
-            onValueChange={(value) =>
-              setData("displayType", value)
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-
-            <SelectContent>
-              <SelectItem value="grid">شبکه‌ای</SelectItem>
-              <SelectItem value="list">لیستی</SelectItem>
-              <SelectItem value="carousel">اسلایدر</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>
-            تعداد نمایش
-          </Label>
-
-          <Input
-            type="number"
-            value={String(data.limit ?? 6)}
-            onChange={(e) =>
-              setData("limit", Number(e.target.value))
-            }
-          />
-        </div>
-
-        <div className="md:col-span-2 flex items-center gap-2">
-          <Switch
-            checked={Boolean(data.showImages)}
-            onCheckedChange={(value) =>
-              setData("showImages", value)
-            }
-          />
-          <span>نمایش تصاویر</span>
-        </div>
-      </div>
-    )
-  }
-
-  /* ------------------------------- DEFAULT ------------------------------- */
+  /* ----------------------------- DEFAULT --------------------------------- */
 
   return (
     <div className="text-sm text-muted-foreground">

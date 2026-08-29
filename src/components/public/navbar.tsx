@@ -24,6 +24,11 @@ import {
   Heart, GitCompare, X, ChevronDown, Sparkles, Phone, Mail,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useSiteConfig } from '@/components/public/site-runtime'
+
+/**
+ * منوی پیش‌فرض — فقط تا زمانی که مدیر سایت منویی نساخته باشد استفاده می‌شود
+ */
 
 const NAV_ITEMS = [
   { key: 'home', label: 'nav.home' },
@@ -32,6 +37,22 @@ const NAV_ITEMS = [
   { key: 'about', label: 'nav.about' },
   { key: 'contact', label: 'nav.contact' },
 ]
+
+/**
+ * تبدیل href ذخیره‌شده در تنظیمات به مسیر داخلی SPA
+ */
+function hrefToRoute(href: string): string | null {
+  const value = (href || '').trim()
+
+  if (/^\?route=/.test(value)) return value.replace('?route=', '')
+  if (value === '/' || value === '') return 'home'
+  if (value.startsWith('/catalog')) return 'catalog'
+  if (value.startsWith('/export')) return 'export'
+  if (value.startsWith('/about')) return 'about'
+  if (value.startsWith('/contact')) return 'contact'
+
+  return null
+}
 
 const LANGUAGES = [
   { code: 'fa', label: 'فارسی', flag: '🇮🇷' },
@@ -52,6 +73,7 @@ const CURRENCIES = [
 
 export function Navbar() {
   const { t, lang, setLang, currency, setCurrency, navigate, route, user, logout, favorites, compareList } = useAppStore()
+  const site = useSiteConfig()
   const [scrolled, setScrolled] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -75,26 +97,75 @@ export function Navbar() {
     setMobileOpen(false)
   }
 
+  /* ------------------------------------------------------------------ */
+  /* منو، برند و اطلاعات تماس از تنظیمات سایت                            */
+  /* ------------------------------------------------------------------ */
+
+  const configuredNav = (site.nav || [])
+    .filter((item) => item.enabled !== false)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((item) => ({
+      key: hrefToRoute(item.href ?? '') ?? '',
+      label: item.label,
+      href: item.href,
+    }))
+    .filter((item) => item.label && (item.key || /^https?:\/\//i.test(item.href ?? '')))
+
+  const navItems = configuredNav.length > 0 ? configuredNav : NAV_ITEMS.map((item) => ({ ...item, href: '' }))
+
+  const brandName =
+    (lang === 'en' ? site.brand.nameEn : site.brand.nameFa) ||
+    site.brand.nameFa ||
+    site.brand.nameEn ||
+    ''
+
+  const brandTagline =
+    (lang === 'en' ? site.brand.taglineEn : site.brand.taglineFa) ||
+    site.brand.taglineFa ||
+    site.brand.taglineEn ||
+    ''
+
+  const logoUrl = site.brand.logoUrl || ''
+
+  const phone = site.brand.phone || ''
+  const email = site.brand.email || ''
+
+  const location = [site.brand.city, site.brand.country].filter(Boolean).join(' - ')
+
+  const goTo = (item: { key: string; href?: string }) => {
+    if (!item.key && item.href) {
+      window.open(item.href, '_blank', 'noopener,noreferrer')
+      return
+    }
+    handleNav(item.key)
+  }
+
   return (
     <>
       {/* Top contact bar */}
-      <div className="hidden border-b border-white/10 bg-[#12110f] py-1.5 text-xs text-white/65 lg:block">
-        <div className="container mx-auto px-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <a href="tel:+982112345678" className="flex items-center gap-1.5 hover:text-gold transition-colors">
-              <Phone className="w-3 h-3" /> +98 21 1234 5678
-            </a>
-            <a href="mailto:info@stonecatalog.ir" className="flex items-center gap-1.5 hover:text-gold transition-colors">
-              <Mail className="w-3 h-3" /> info@stonecatalog.ir
-            </a>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-gold">✦ صادرات به ۳۰+ کشور</span>
-            <span>•</span>
-            <span>تهران - شمس‌آباد</span>
+      {(phone || email || brandTagline || location) && (
+        <div className="hidden border-b border-white/10 bg-[#12110f] py-1.5 text-xs text-white/65 lg:block">
+          <div className="container mx-auto px-4 flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              {phone && (
+                <a href={`tel:${phone}`} className="flex items-center gap-1.5 hover:text-gold transition-colors" dir="ltr">
+                  <Phone className="w-3 h-3" /> {phone}
+                </a>
+              )}
+              {email && (
+                <a href={`mailto:${email}`} className="flex items-center gap-1.5 hover:text-gold transition-colors" dir="ltr">
+                  <Mail className="w-3 h-3" /> {email}
+                </a>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              {brandTagline && <span className="text-gold">{brandTagline}</span>}
+              {brandTagline && location && <span>•</span>}
+              {location && <span>{location}</span>}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main navbar */}
       <header
@@ -107,24 +178,30 @@ export function Navbar() {
           <div className="flex h-[76px] items-center justify-between gap-4">
             {/* Logo */}
             <button onClick={() => handleNav('home')} className="flex items-center gap-3 shrink-0 group">
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#d6b66a]/40 bg-[#1b1814] shadow-lg transition-transform group-hover:scale-105">
-                <Sparkles className="h-5 w-5 text-[#d6b66a]" />
-                <div className="absolute inset-0 rounded-full bg-[#d6b66a]/5" />
+              <div className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[#d6b66a]/40 bg-[#1b1814] shadow-lg transition-transform group-hover:scale-105 overflow-hidden">
+                {logoUrl ? (
+                  <img src={logoUrl} alt={brandName} className="h-full w-full object-cover" />
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5 text-[#d6b66a]" />
+                    <div className="absolute inset-0 rounded-full bg-[#d6b66a]/5" />
+                  </>
+                )}
               </div>
               <div className="hidden text-right sm:block">
                 <div className="text-base font-black leading-tight text-white">
-                  Stone Catalog Pro
+                  {brandName || t('brand.name')}
                 </div>
-                <div className="text-[10px] tracking-wide text-white/40">سنگیران کاتالوگ</div>
+                <div className="text-[10px] tracking-wide text-white/40">{brandTagline}</div>
               </div>
             </button>
 
             {/* Desktop nav */}
             <nav className="hidden lg:flex items-center gap-1">
-              {NAV_ITEMS.map(item => (
+              {navItems.map((item, index) => (
                 <button
-                  key={item.key}
-                  onClick={() => handleNav(item.key)}
+                  key={item.key || item.href || index}
+                  onClick={() => goTo(item)}
                   className={cn(
                     'relative px-4 py-2 text-sm font-medium text-white/65 transition-all hover:text-white',
                     route === item.key
@@ -132,7 +209,7 @@ export function Navbar() {
                       : 'text-white/65 hover:text-white'
                   )}
                 >
-                  {t(item.label)}
+                  {item.label?.startsWith?.('nav.') ? t(item.label) : item.label}
                   {route === item.key && (
                     <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-gold rounded-full" />
                   )}
@@ -294,10 +371,10 @@ export function Navbar() {
                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     </form>
                     <nav className="flex flex-col gap-1">
-                      {NAV_ITEMS.map(item => (
+                      {navItems.map((item, index) => (
                         <button
-                          key={item.key}
-                          onClick={() => handleNav(item.key)}
+                          key={item.key || item.href || index}
+                          onClick={() => goTo(item)}
                           className={cn(
                             'px-4 py-3 rounded-lg text-right text-sm font-medium transition-all',
                             route === item.key
@@ -305,7 +382,7 @@ export function Navbar() {
                               : 'hover:bg-accent'
                           )}
                         >
-                          {t(item.label)}
+                          {item.label?.startsWith?.('nav.') ? t(item.label) : item.label}
                         </button>
                       ))}
                     </nav>

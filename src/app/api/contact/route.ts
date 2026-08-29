@@ -4,7 +4,9 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 import { z } from 'zod'
+import { emitEvent } from '@/lib/webhooks'
 
 const contactSchema = z.object({
   customerName: z.string().min(2).max(200),
@@ -18,7 +20,7 @@ const contactSchema = z.object({
  */
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+    const ip = getClientIp(req)
     const limited = await rateLimit(`contact:${ip}`, 10, 60)
     if (!limited.allowed) {
       return NextResponse.json(
@@ -39,6 +41,14 @@ export async function POST(req: NextRequest) {
         status: 'NEW',
         priority: 'MEDIUM',
       },
+    })
+
+    emitEvent('contact.created', {
+      id: inquiry.id,
+      customerName: inquiry.customerName,
+      customerPhone: inquiry.customerPhone,
+      customerEmail: inquiry.customerEmail,
+      occurredAt: new Date().toISOString(),
     })
 
     return NextResponse.json(

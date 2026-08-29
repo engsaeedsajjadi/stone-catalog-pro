@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { Navbar } from '@/components/public/navbar'
 import { Footer } from '@/components/public/footer'
 import { SiteRuntime } from '@/components/public/site-runtime'
+import { RouterSync } from '@/components/public/router-sync'
 import { useAppStore } from '@/store/app-store'
 
 interface AppShellProps {
@@ -22,6 +23,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <SiteRuntime>
+      <RouterSync />
       <div
         className="min-h-screen flex flex-col bg-background text-foreground site-app-shell"
         dir="rtl"

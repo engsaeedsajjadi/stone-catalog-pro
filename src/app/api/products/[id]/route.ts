@@ -5,6 +5,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
+import { serializeStone } from '@/lib/stone-serialize'
+import { getViewer } from '@/lib/auth'
+import { emitEvent } from '@/lib/webhooks'
 
 export async function GET(
   _req: NextRequest,
@@ -19,11 +22,14 @@ export async function GET(
         images: { orderBy: { order: 'asc' } },
         videos: true,
         prices: { where: { isActive: true }, orderBy: { amount: 'asc' } },
-        inventory: true,
+        inventory: { include: { warehouse: true } },
         auditLogs: { take: 10, orderBy: { createdAt: 'desc' } },
       },
     })
     if (!stone) return NextResponse.json({ success: false, error: 'محصول یافت نشد' }, { status: 404 })
+
+    const viewer = await getViewer(_req)
+    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
 
     // افزایش شمارنده بازدید — از طریق Job برای عملکرد بهتر
     // به‌جای write مستقیم، از increment بدون await استفاده می‌شود
@@ -36,7 +42,7 @@ export async function GET(
       include: { images: { take: 1 } },
     })
 
-    return NextResponse.json({ success: true, data: { ...stone, inventory: stone.inventory?.[0] || null, related } })
+    return NextResponse.json({ success: true, data: { ...serializeStone(stone, serializeOptions), related } })
   } catch (e) {
     console.error('GET /api/products/[id] error:', e)
     return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
@@ -154,6 +160,11 @@ export async function PUT(
       },
     })
 
+    emitEvent('product.updated', {
+      id,
+      occurredAt: new Date().toISOString(),
+    })
+
     return NextResponse.json({ success: true, data: stone })
   } catch (e) {
     console.error('PUT /api/products/[id] error:', e)
@@ -170,6 +181,9 @@ export async function DELETE(
   try {
     const { id } = await params
     await db.stone.delete({ where: { id } })
+
+    emitEvent('product.deleted', { id, occurredAt: new Date().toISOString() })
+
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error('DELETE /api/products/[id] error:', e)

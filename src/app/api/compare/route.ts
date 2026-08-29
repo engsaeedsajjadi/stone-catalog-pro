@@ -3,12 +3,24 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { serializeStones } from '@/lib/stone-serialize'
+import { getViewer } from '@/lib/auth'
+import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 // Compare multiple stones side by side
 export async function GET(req: NextRequest) {
   try {
+    const limited = await rateLimit(`compare:${getClientIp(req)}`, 60, 60)
+    if (!limited.allowed) {
+      return NextResponse.json({ success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' }, { status: 429 })
+    }
+
+    const viewer = await getViewer(req)
+    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+
     const { searchParams } = new URL(req.url)
-    const ids = searchParams.get('ids')?.split(',').filter(Boolean) || []
+    const ids = (searchParams.get('ids')?.split(',').filter(Boolean) || []).slice(0, 6)
     if (ids.length === 0) {
       return NextResponse.json({ success: false, error: 'No IDs provided' }, { status: 400 })
     }
@@ -22,12 +34,15 @@ export async function GET(req: NextRequest) {
         category: true,
         images: { take: 1, orderBy: { order: 'asc' } },
         prices: { where: { isActive: true } },
-        inventory: true,
+        inventory: { include: { warehouse: true } },
       },
     })
 
     // Preserve order from request
-    const ordered = ids.map(id => stones.find(s => s.id === id)).filter(Boolean)
+    const ordered = serializeStones(
+      ids.map(id => stones.find(s => s.id === id)).filter(Boolean) as Record<string, any>[],
+      serializeOptions
+    )
 
     return NextResponse.json({ success: true, data: ordered })
   } catch (e) {

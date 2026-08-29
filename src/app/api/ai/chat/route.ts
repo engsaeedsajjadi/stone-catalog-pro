@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { aiChat } from '@/lib/ai'
 import { requireAuth } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 import { z } from 'zod'
 
 const chatSchema = z.object({
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireAuth(req)
   if ('response' in auth) return auth.response
 
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(req)
   const limited = await rateLimit(`ai-chat:${ip}`, 20, 60)
   if (!limited.allowed) {
     return NextResponse.json(

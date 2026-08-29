@@ -32,3 +32,23 @@ export async function setAuthCookies(response: NextResponse, accessToken: string
 }
 
 export function refreshTokenHash(token: string) { return hashToken(token) }
+
+export type Viewer = { isAuthenticated: boolean; role: string | null }
+
+/**
+ * تشخیص بازدیدکننده بدون کوئری به پایگاه‌داده
+ *
+ * برای تصمیم‌های نمایشی (مثل اینکه کدام لایه‌های قیمتی ارسال شوند)
+ * استفاده می‌شود. تصمیم‌های امنیتیِ حساس حتماً باید از requireAuth
+ * (که کاربر را از دیتابیس می‌خواند) استفاده کنند.
+ */
+export async function getViewer(req?: NextRequest): Promise<Viewer> {
+  const cookieStore = await cookies()
+  const access = cookieStore.get('stone_access')?.value || req?.cookies.get('stone_access')?.value
+  if (!access) return { isAuthenticated: false, role: null }
+
+  const claims = verifyAccessToken(access)
+  if (!claims) return { isAuthenticated: false, role: null }
+
+  return { isAuthenticated: true, role: claims.role ?? null }
+}

@@ -9,6 +9,9 @@ import sharp from 'sharp'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { db } from '@/lib/db'
+import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
+import { checkSafeOutboundUrl } from '@/lib/url-safety'
 
 function fitText(value: unknown) {
   return String(value ?? '').slice(0, 220)
@@ -19,14 +22,24 @@ async function loadFont(fileName: string) {
   return fs.readFile(filePath)
 }
 
-async function fetchImageAsPng(url: string) {
-  const response = await fetch(url, {
+async function fetchImageAsPng(rawUrl: string) {
+  /**
+   * تصویر از پایگاه‌داده می‌آید؛ با این حال قبل از هر درخواست خروجی
+   * بررسی می‌کنیم که به شبکه‌ی داخلی/لوکال‌هاست اشاره نکند (SSRF).
+   */
+  const safety = checkSafeOutboundUrl(rawUrl)
+  if (!safety.ok) {
+    throw new Error(`آدرس تصویر مجاز نیست: ${safety.reason}`)
+  }
+
+  const response = await fetch(safety.url.toString(), {
     cache: 'no-store',
+    redirect: 'error',
   })
 
   if (!response.ok) {
     throw new Error(
-      `Image fetch failed: ${response.status} ${response.statusText} - ${url}`
+      `Image fetch failed: ${response.status} ${response.statusText} - ${rawUrl}`
     )
   }
 
@@ -67,6 +80,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // تولید PDF عملیات سنگینی است (تبدیل تصویر + فونت + QR)
+    const limited = await rateLimit(`pdf:${getClientIp(_req)}`, 20, 60)
+    if (!limited.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
+        { status: 429 }
+      )
+    }
+
     const { id } = await params
 
     const stone = await db.stone.findUnique({
@@ -265,10 +287,6 @@ export async function GET(
           baseUrl
         ).toString()
 
-        console.log(
-          '[PDF] Fetching stone image:',
-          imageUrl
-        )
 
         const imageData =
           await fetchImageAsPng(imageUrl)
@@ -287,10 +305,6 @@ export async function GET(
           height: dims.height,
         })
       } catch (imageError) {
-        console.error(
-          '[PDF] Stone image failed:',
-          imageError
-        )
 
         // Image failure must not break the whole PDF.
       }

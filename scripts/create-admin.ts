@@ -22,14 +22,14 @@ async function main() {
     where: { email },
     update: {
       name,
-      password: hashPassword(password),
+      password: await hashPassword(password),
       role: 'ADMIN',
       isActive: true,
     },
     create: {
       email,
       name,
-      password: hashPassword(password),
+      password: await hashPassword(password),
       role: 'ADMIN',
       isActive: true,
     },

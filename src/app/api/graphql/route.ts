@@ -6,6 +6,7 @@ import { graphql, buildSchema } from 'graphql'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
+import { getClientIp } from '@/lib/request'
 
 const schema = buildSchema(`
   type Category {
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
   if ('response' in auth) return auth.response
 
   // محدودیت نرخ: ۳۰ درخواست در دقیقه
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
+  const ip = getClientIp(req)
   const limited = await rateLimit(`graphql:${ip}`, 30, 60)
   if (!limited.allowed) {
     return NextResponse.json(
