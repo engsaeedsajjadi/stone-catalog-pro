@@ -13,20 +13,10 @@ import { Toaster as SonnerToaster } from 'sonner'
 import { useSiteConfig } from '@/components/public/site-runtime'
 
 export default function Home() {
-  const { route, navigate, isExhibitionMode, lang } = useAppStore()
+  const { route, isExhibitionMode, lang } = useAppStore()
 
   // Handle URL params (deep linking for product view, search, etc.)
   useEffect(() => { if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{}) }, [])
-
-  useEffect(() => {
-    const url = new URL(window.location.href)
-    const productParam = url.searchParams.get('product')
-    const qParam = url.searchParams.get('q')
-    const langParam = url.searchParams.get('lang')
-
-    if (productParam) navigate('product', { id: productParam })
-    else if (qParam) navigate('catalog', { q: qParam })
-  }, [])
 
   // Update document direction and language when language changes
   useEffect(() => {

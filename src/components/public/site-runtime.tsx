@@ -11,8 +11,6 @@ import {
 import type { SiteConfig } from '@/lib/site-config-types'
 import { emptySiteConfig } from '@/lib/site-config-types'
 
-import { usePathname } from 'next/navigation'
-
 const SiteContext = createContext<SiteConfig>(emptySiteConfig)
 
 export const useSiteConfig = () => useContext(SiteContext)
@@ -24,8 +22,7 @@ export function SiteRuntime({
 }) {
   const [config, setConfig] = useState<SiteConfig>(emptySiteConfig)
 
-  const pathname = usePathname()
-
+  // فقط یک‌بار در mount — وابسته به مسیر نیست
   useEffect(() => {
     fetch('/api/site-config', {
       cache: 'no-store',
@@ -37,7 +34,7 @@ export function SiteRuntime({
         }
       })
       .catch(() => {})
-  }, [pathname])
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement

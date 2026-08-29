@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { serializeStones } from '@/lib/stone-serialize'
 
 /**
  * جستجوی سنگ‌ها با Meilisearch یا fallback به دیتابیس
@@ -43,9 +44,9 @@ export async function searchStones(query: string, limit = 24) {
       category: true,
       images: { take: 1, orderBy: { order: 'asc' } },
       prices: true,
-      inventory: true,
+      inventory: { include: { warehouse: true } },
     },
   })
 
-  return { mode: 'database', hits: stones }
+  return { mode: 'database', hits: serializeStones(stones) }
 }

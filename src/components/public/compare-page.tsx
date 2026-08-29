@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GitCompare, X, Check, ArrowLeft, Loader2 } from 'lucide-react'
+import { getInventoryNumber } from '@/lib/stone-serialize'
 
  
 export function ComparePage() {
@@ -135,7 +136,7 @@ export function ComparePage() {
                 <td className="p-4 font-bold sticky right-0 bg-primary/5 z-10">موجودی (m²)</td>
                 {stones.map(s => (
                   <td key={s.id} className="p-4 text-center">
-                    {s.inventory?.availableSqm || 0}
+                    {getInventoryNumber(s, 'availableSqm')}
                   </td>
                 ))}
               </tr>

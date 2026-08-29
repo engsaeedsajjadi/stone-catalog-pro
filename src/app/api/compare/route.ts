@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { serializeStones } from '@/lib/stone-serialize'
 
 // Compare multiple stones side by side
 export async function GET(req: NextRequest) {
@@ -22,12 +23,14 @@ export async function GET(req: NextRequest) {
         category: true,
         images: { take: 1, orderBy: { order: 'asc' } },
         prices: { where: { isActive: true } },
-        inventory: true,
+        inventory: { include: { warehouse: true } },
       },
     })
 
     // Preserve order from request
-    const ordered = ids.map(id => stones.find(s => s.id === id)).filter(Boolean)
+    const ordered = serializeStones(
+      ids.map(id => stones.find(s => s.id === id)).filter(Boolean) as Record<string, any>[]
+    )
 
     return NextResponse.json({ success: true, data: ordered })
   } catch (e) {

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
+import { serializeStones } from '@/lib/stone-serialize'
 
 export async function GET(req: NextRequest) {
   try {
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
           category: true,
           images: { take: 1, orderBy: { order: 'asc' } },
           prices: { where: { isActive: true } },
-          inventory: true,
+          inventory: { include: { warehouse: true } },
         },
       })
 
@@ -123,7 +124,7 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        data: pagedStones.map((stone) => ({ ...stone, inventory: stone.inventory?.[0] || null })),
+        data: serializeStones(pagedStones),
         pagination: {
           page,
           pageSize,
@@ -149,14 +150,14 @@ export async function GET(req: NextRequest) {
           category: true,
           images: { take: 1, orderBy: { order: 'asc' } },
           prices: { where: { isActive: true } },
-          inventory: true,
+          inventory: { include: { warehouse: true } },
         },
       }),
     ])
 
     return NextResponse.json({
       success: true,
-      data: stones,
+      data: serializeStones(stones),
       pagination: {
         page,
         pageSize,

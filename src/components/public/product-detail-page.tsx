@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/tabs'
 
 import { Input } from '@/components/ui/input'
+import { getInventory } from '@/lib/stone-serialize'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -84,8 +85,18 @@ export function ProductDetailPage({
   const [stone, setStone] =
     useState<StoneDetail>(null)
 
+  /*
+   * اگر شناسه‌ای وجود نداشته باشد نباید در حالت بارگذاری بمانیم،
+   * پس مقدار اولیه از روی همان شناسه محاسبه می‌شود.
+   */
   const [loading, setLoading] =
-    useState(true)
+    useState(() =>
+      Boolean(
+        initialProductId ||
+          params.id ||
+          params.slug
+      )
+    )
 
   const [activeImage, setActiveImage] =
     useState(0)
@@ -123,18 +134,12 @@ export function ProductDetailPage({
     ''
 
   useEffect(() => {
-    if (!productIdentifier) {
-      setStone(null)
-      setLoading(false)
-      return
-    }
+    if (!productIdentifier) return
 
     let cancelled = false
 
-    async function loadProduct() {
+    ;(async () => {
       try {
-        setLoading(true)
-
         const response =
           await fetch(
             `/api/products/${encodeURIComponent(
@@ -178,9 +183,7 @@ export function ProductDetailPage({
           setLoading(false)
         }
       }
-    }
-
-    loadProduct()
+    })()
 
     return () => {
       cancelled = true
@@ -408,7 +411,7 @@ export function ProductDetailPage({
     stone.prices || []
 
   const inv =
-    stone.inventory
+    getInventory(stone)
 
   const specs = [
     {

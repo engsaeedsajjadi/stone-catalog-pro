@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ImageUploader, type UploadedImage } from '@/components/admin/image-uploader'
+import { getInventory } from '@/lib/stone-serialize'
 import { SiteDesigner } from '@/components/admin/site-designer'
 
  
@@ -208,13 +209,20 @@ export function AdminPage() {
 function DashboardTab() {
   const [data, setData] = useState<DashboardData>(null)
   const [loading, setLoading] = useState(true)
+  const dataVersion = useAppStore((state) => state.dataVersion)
 
   useEffect(() => {
-    fetch('/api/dashboard').then(r => r.json()).then(d => {
-      setData(d.data)
-      setLoading(false)
-    })
-  }, [])
+    let cancelled = false
+    fetch('/api/dashboard', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+        setData(d.data)
+        setLoading(false)
+      })
+      .catch(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [dataVersion])
 
   if (loading) {
     return <div className="grid md:grid-cols-4 gap-4">{[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-xl shimmer" />)}</div>
@@ -410,6 +418,7 @@ function DashboardTab() {
 
 // ============ PRODUCTS TAB ============
 function ProductsTab() {
+  const invalidateData = useAppStore((state) => state.invalidateData)
   const [products, setProducts] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -489,6 +498,7 @@ function ProductsTab() {
     const res = await fetch(`/api/products/${id}`, { method: 'DELETE' })
     if (res.ok) {
       toast.success('محصول حذف شد')
+      invalidateData()
       load()
     }
   }
@@ -505,6 +515,7 @@ function ProductsTab() {
         toast.success('محصول جدید با موفقیت ایجاد شد')
         setShowForm(false)
         setEditing(null)
+        invalidateData()
         load()
       } else {
         toast.error(result.error || 'خطا در ایجاد محصول')
@@ -521,6 +532,7 @@ function ProductsTab() {
         toast.success('محصول بروزرسانی شد')
         setShowForm(false)
         setEditing(null)
+        invalidateData()
         load()
       } else {
         toast.error(result.error || 'خطا در بروزرسانی')
@@ -620,11 +632,15 @@ function ProductsTab() {
                     {p.prices?.find((pr: any) => pr.type === 'PER_SQM')?.amount.toLocaleString() || '—'}
                   </td>
                   <td className="p-3 text-sm">
-                    {p.inventory ? (
-                      <Badge variant="outline" className={p.inventory.availableSqm > 0 ? 'text-green-600' : 'text-red-600'}>
-                        {p.inventory.availableSqm} m²
-                      </Badge>
-                    ) : '—'}
+                    {(() => {
+                      const inv = getInventory(p)
+                      const available = Number(inv?.availableSqm ?? 0)
+                      return inv ? (
+                        <Badge variant="outline" className={available > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {available.toLocaleString()} m²
+                        </Badge>
+                      ) : '—'
+                    })()}
                   </td>
                   <td className="p-3 text-sm text-muted-foreground">{p.viewCount}</td>
                   <td className="p-3">
@@ -668,6 +684,9 @@ function ProductsTab() {
 
  
 function ProductFormModal({ mode, product, categories, onSave, onClose }: any) {
+  // موجودی ممکن است از لیست (آبجکت نرمال‌شده) یا از هر شکل قدیمی برسد
+  const inventory = getInventory(product)
+
   const [form, setForm] = useState({
     name: product?.name || '',
     nameEn: product?.nameEn || '',
@@ -707,13 +726,13 @@ function ProductFormModal({ mode, product, categories, onSave, onClose }: any) {
     pricePartner: product?.prices?.find((p: any) => p.type === 'PARTNER' && p.currency === 'IRR')?.amount?.toString() || '',
     priceProject: product?.prices?.find((p: any) => p.type === 'PROJECT' && p.currency === 'IRR')?.amount?.toString() || '',
     // Inventory
-    slabCount: product?.inventory?.[0]?.slabCount?.toString() || '',
-    totalSqm: product?.inventory?.[0]?.totalSqm?.toString() || '',
-    availableSqm: product?.inventory?.[0]?.availableSqm?.toString() || '',
-    reservedSqm: product?.inventory?.[0]?.reservedSqm?.toString() || '',
-    inProductionSqm: product?.inventory?.[0]?.inProductionSqm?.toString() || '',
-    blockCount: product?.inventory?.[0]?.blockCount?.toString() || '',
-    inventoryLocation: product?.inventory?.[0]?.location || '',
+    slabCount: inventory?.slabCount?.toString() || '',
+    totalSqm: inventory?.totalSqm?.toString() || '',
+    availableSqm: inventory?.availableSqm?.toString() || '',
+    reservedSqm: inventory?.reservedSqm?.toString() || '',
+    inProductionSqm: inventory?.inProductionSqm?.toString() || '',
+    blockCount: inventory?.blockCount?.toString() || '',
+    inventoryLocation: inventory?.location || '',
   })
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>(() => (product?.images || []).map((img: any) => ({ id: img.mediaAssetId || img.id, stoneImageId: img.id, mediaAssetId: img.mediaAssetId || undefined, url: img.url, originalName: img.alt || 'image', mimeType: 'image/*', size: 0 } as any)))
   const [saving, setSaving] = useState(false)
@@ -1359,45 +1378,93 @@ function PricingTab() {
 function InventoryTab() {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ slabCount: 0, totalSqm: 0, availableSqm: 0, reservedSqm: 0, inProductionSqm: 0, location: '' })
+  const [editForm, setEditForm] = useState({
+    slabCount: 0,
+    totalSqm: 0,
+    availableSqm: 0,
+    reservedSqm: 0,
+    inProductionSqm: 0,
+    location: '',
+  })
 
-  const load = async () => {
-    try {
-      const res = await fetch('/api/products?pageSize=100')
-      const d = await res.json()
-      setProducts(d.data || [])
-    } finally {
-      setLoading(false)
+  const invalidateData = useAppStore((state) => state.invalidateData)
+  const dataVersion = useAppStore((state) => state.dataVersion)
+
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const res = await fetch('/api/products?pageSize=100', { cache: 'no-store' })
+        const d = await res.json()
+        if (!cancelled) setProducts(d.data || [])
+      } catch {
+        if (!cancelled) toast.error('دریافت موجودی ناموفق بود')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
     }
-  }
-
-  useEffect(() => { void load() }, [])
+  }, [dataVersion])
 
   const startEdit = (p: any) => {
+    const inv = getInventory(p)
     setEditing(p.id)
     setEditForm({
-      slabCount: p.inventory?.slabCount || 0,
-      totalSqm: p.inventory?.totalSqm || 0,
-      availableSqm: p.inventory?.availableSqm || 0,
-      reservedSqm: p.inventory?.reservedSqm || 0,
-      inProductionSqm: p.inventory?.inProductionSqm || 0,
-      location: p.inventory?.location || '',
+      slabCount: Number(inv?.slabCount ?? 0),
+      totalSqm: Number(inv?.totalSqm ?? 0),
+      availableSqm: Number(inv?.availableSqm ?? 0),
+      reservedSqm: Number(inv?.reservedSqm ?? 0),
+      inProductionSqm: Number(inv?.inProductionSqm ?? 0),
+      location: inv?.location || '',
     })
   }
 
   const save = async () => {
-    const res = await fetch('/api/inventory', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ stoneId: editing, ...editForm, warehouseName: 'انبار مرکزی تهران' }),
-    })
-    if (res.ok) {
+    if (!editing) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stoneId: editing,
+          slabCount: Number(editForm.slabCount) || 0,
+          totalSqm: Number(editForm.totalSqm) || 0,
+          availableSqm: Number(editForm.availableSqm) || 0,
+          reservedSqm: Number(editForm.reservedSqm) || 0,
+          inProductionSqm: Number(editForm.inProductionSqm) || 0,
+          location: editForm.location,
+          warehouseCode: 'MAIN',
+          warehouseName: 'انبار مرکزی',
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok || !d.success) throw new Error(d.error || 'ذخیره ناموفق بود')
+
       toast.success('موجودی بروزرسانی شد')
       setEditing(null)
-      load()
+      // آمار داشبورد و سایر تب‌ها را هم تازه کن
+      invalidateData()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'ذخیره ناموفق بود')
+    } finally {
+      setSaving(false)
     }
   }
+
+  const columns: Array<{ key: keyof typeof editForm; label: string; tone?: string }> = [
+    { key: 'slabCount', label: 'اسلب' },
+    { key: 'totalSqm', label: 'کل m²' },
+    { key: 'availableSqm', label: 'موجود m²', tone: 'text-green-600' },
+    { key: 'reservedSqm', label: 'رزرو m²', tone: 'text-amber-600' },
+    { key: 'inProductionSqm', label: 'در تولید m²', tone: 'text-blue-600' },
+  ]
 
   return (
     <div className="space-y-4">
@@ -1407,11 +1474,9 @@ function InventoryTab() {
             <thead className="bg-muted/50 border-b">
               <tr>
                 <th className="text-right p-3 text-xs font-bold sticky right-0 bg-muted/50">محصول</th>
-                <th className="text-right p-3 text-xs font-bold">اسلب</th>
-                <th className="text-right p-3 text-xs font-bold">کل m²</th>
-                <th className="text-right p-3 text-xs font-bold">موجود m²</th>
-                <th className="text-right p-3 text-xs font-bold">رزرو m²</th>
-                <th className="text-right p-3 text-xs font-bold">در تولید m²</th>
+                {columns.map((col) => (
+                  <th key={String(col.key)} className="text-right p-3 text-xs font-bold">{col.label}</th>
+                ))}
                 <th className="text-right p-3 text-xs font-bold">انبار</th>
                 <th className="text-right p-3 text-xs font-bold">عملیات</th>
               </tr>
@@ -1419,9 +1484,11 @@ function InventoryTab() {
             <tbody>
               {loading ? (
                 <tr><td colSpan={8} className="text-center p-8">در حال بارگذاری...</td></tr>
+              ) : products.length === 0 ? (
+                <tr><td colSpan={8} className="text-center p-8 text-muted-foreground">محصولی ثبت نشده است</td></tr>
               ) : products.map(p => {
                 const isEditing = editing === p.id
-                const inv = p.inventory
+                const inv = getInventory(p)
                 return (
                   <tr key={p.id} className="border-b hover:bg-accent/50">
                     <td className="p-3 sticky right-0 bg-background">
@@ -1430,24 +1497,39 @@ function InventoryTab() {
                     </td>
                     {isEditing ? (
                       <>
-                        <td className="p-3"><Input type="number" value={editForm.slabCount} onChange={(e) => setEditForm({ ...editForm, slabCount: +e.target.value })} className="w-20" dir="ltr" /></td>
-                        <td className="p-3"><Input type="number" value={editForm.totalSqm} onChange={(e) => setEditForm({ ...editForm, totalSqm: +e.target.value })} className="w-24" dir="ltr" /></td>
-                        <td className="p-3"><Input type="number" value={editForm.availableSqm} onChange={(e) => setEditForm({ ...editForm, availableSqm: +e.target.value })} className="w-24" dir="ltr" /></td>
-                        <td className="p-3"><Input type="number" value={editForm.reservedSqm} onChange={(e) => setEditForm({ ...editForm, reservedSqm: +e.target.value })} className="w-24" dir="ltr" /></td>
-                        <td className="p-3"><Input type="number" value={editForm.inProductionSqm} onChange={(e) => setEditForm({ ...editForm, inProductionSqm: +e.target.value })} className="w-24" dir="ltr" /></td>
-                        <td className="p-3"><Input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-32" /></td>
+                        {columns.map((col) => (
+                          <td key={String(col.key)} className="p-3">
+                            <Input
+                              type="number"
+                              value={editForm[col.key]}
+                              onChange={(e) => setEditForm({ ...editForm, [col.key]: e.target.value === '' ? 0 : Number(e.target.value) })}
+                              className="w-24"
+                              dir="ltr"
+                            />
+                          </td>
+                        ))}
                         <td className="p-3">
-                          <Button size="sm" onClick={save}><Check className="w-3.5 h-3.5 ml-1" /> ذخیره</Button>
+                          <Input value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} className="w-32" />
+                        </td>
+                        <td className="p-3">
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={save} disabled={saving}>
+                              <Check className="w-3.5 h-3.5 ml-1" /> {saving ? 'در حال ذخیره...' : 'ذخیره'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditing(null)}>انصراف</Button>
+                          </div>
                         </td>
                       </>
                     ) : (
                       <>
-                        <td className="p-3 text-sm">{inv?.slabCount || 0}</td>
-                        <td className="p-3 text-sm">{inv?.totalSqm || 0}</td>
-                        <td className="p-3 text-sm font-medium text-green-600">{inv?.availableSqm || 0}</td>
-                        <td className="p-3 text-sm text-amber-600">{inv?.reservedSqm || 0}</td>
-                        <td className="p-3 text-sm text-blue-600">{inv?.inProductionSqm || 0}</td>
-                        <td className="p-3 text-xs text-muted-foreground">{inv?.warehouseName || '—'}</td>
+                        {columns.map((col) => (
+                          <td key={String(col.key)} className={`p-3 text-sm ${col.tone || ''}`}>
+                            {Number(inv?.[col.key as string] ?? 0).toLocaleString()}
+                          </td>
+                        ))}
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {inv?.location || inv?.warehouseName || '—'}
+                        </td>
                         <td className="p-3">
                           <Button variant="outline" size="sm" onClick={() => startEdit(p)}>
                             <Edit className="w-3.5 h-3.5 ml-1" /> ویرایش
