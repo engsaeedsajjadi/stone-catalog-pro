@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
 import { requireAuth } from '@/lib/auth'
+import { emitEvent } from '@/lib/webhooks'
 
 const CURRENCIES = ['IRR', 'IRT', 'USD', 'EUR', 'AED', 'RUB'] as const
 
@@ -161,6 +162,14 @@ export async function POST(req: NextRequest) {
         paymentMethod: body.paymentMethod,
         items: { create: pricedItems },
       },
+    })
+
+    emitEvent('order.created', {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      totalAmount: order.totalAmount,
+      currency: order.currency,
+      occurredAt: new Date().toISOString(),
     })
 
     return NextResponse.json({ success: true, data: order }, { status: 201 })

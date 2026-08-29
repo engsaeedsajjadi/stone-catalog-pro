@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
 import { serializeStone } from '@/lib/stone-serialize'
 import { getViewer } from '@/lib/auth'
+import { emitEvent } from '@/lib/webhooks'
 
 export async function GET(
   _req: NextRequest,
@@ -159,6 +160,11 @@ export async function PUT(
       },
     })
 
+    emitEvent('product.updated', {
+      id,
+      occurredAt: new Date().toISOString(),
+    })
+
     return NextResponse.json({ success: true, data: stone })
   } catch (e) {
     console.error('PUT /api/products/[id] error:', e)
@@ -175,6 +181,9 @@ export async function DELETE(
   try {
     const { id } = await params
     await db.stone.delete({ where: { id } })
+
+    emitEvent('product.deleted', { id, occurredAt: new Date().toISOString() })
+
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error('DELETE /api/products/[id] error:', e)

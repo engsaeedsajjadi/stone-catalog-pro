@@ -63,6 +63,27 @@ npm run dev
 
 `STORAGE_PROVIDER=local` برای محیط داخلی و `STORAGE_PROVIDER=s3` برای AWS S3/Cloudflare R2 قابل استفاده است. همه تصاویر از File Picker و `multipart/form-data` وارد می‌شوند و URL خام برای تصویر محصول پذیرفته نمی‌شود.
 
+## Webhookها
+
+وب‌هوک‌ها را از پنل مدیریت تعریف کنید؛ ارسال واقعی توسط Worker انجام می‌شود:
+
+```powershell
+npm run worker
+```
+
+هر درخواست با هدر `x-stone-signature` (امضای HMAC-SHA256 از بدنه با کلید secret وب‌هوک)
+و هدر `x-stone-event` ارسال می‌شود. رویدادهای فعلی:
+
+| رویداد | زمان وقوع |
+| --- | --- |
+| `inquiry.created` | ثبت استعلام جدید |
+| `contact.created` | ارسال فرم تماس |
+| `order.created` | ثبت سفارش |
+| `product.created` / `product.updated` / `product.deleted` | تغییرات محصولات |
+
+ارسال با تلاش مجدد انجام می‌شود (حداکثر ۵ بار با فاصله‌ی افزایشی) و شکست وب‌هوک
+هرگز باعث خطای درخواست کاربر نمی‌شود.
+
 ## سرویس‌های خارجی
 
 Meilisearch، AI، OTP، Google OAuth، اعلان‌ها، ERP و درگاه پرداخت فقط با Credential واقعی فعال می‌شوند. در صورت تنظیم نشدن Provider، سیستم خطای «provider not configured» می‌دهد و هیچ پاسخ یا داده ساختگی تولید نمی‌کند.

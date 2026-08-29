@@ -46,3 +46,14 @@ export async function dispatchWebhook(
     })
   }
 }
+
+/**
+ * ارسال رویداد به‌صورت «غیرمسدودکننده»
+ *
+ * هرگز خطا پرتاب نمی‌کند: خرابی وب‌هوک نباید پاسخ به کاربر را خراب کند.
+ */
+export function emitEvent(event: string, payload: unknown): void {
+  void dispatchWebhook(event, payload).catch((error) => {
+    console.error(`[webhooks] dispatch failed for ${event}:`, error)
+  })
+}

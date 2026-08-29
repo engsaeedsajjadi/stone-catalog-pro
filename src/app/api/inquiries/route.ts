@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
+import { emitEvent } from '@/lib/webhooks'
 
 /**
  * فرم استعلام عمومی
@@ -140,6 +141,14 @@ export async function POST(req: NextRequest) {
         priority: 'MEDIUM',
       },
       include: { stone: true, customer: true },
+    })
+
+    emitEvent('inquiry.created', {
+      id: inquiry.id,
+      customerName: inquiry.customerName,
+      customerPhone: inquiry.customerPhone,
+      stoneId: inquiry.stoneId,
+      occurredAt: new Date().toISOString(),
     })
 
     return NextResponse.json({ success: true, data: inquiry }, { status: 201 })

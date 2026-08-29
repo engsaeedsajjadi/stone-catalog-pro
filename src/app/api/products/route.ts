@@ -8,8 +8,12 @@ import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
 import { serializeStones } from '@/lib/stone-serialize'
 import { getViewer } from '@/lib/auth'
+import { emitEvent } from '@/lib/webhooks'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
+
+/** بیشترین تعداد محصولی که هنگام مرتب‌سازی بر اساس قیمت در نظر گرفته می‌شود */
+const PRICE_SORT_WINDOW = 5000
 
 export async function GET(req: NextRequest) {
   try {
@@ -97,14 +101,22 @@ export async function GET(req: NextRequest) {
     if (needsPriceSort) {
       const priceOrder = sort === 'price-asc' ? 'asc' : 'desc'
 
-      // ابتدا شناسه محصولات منطبق با فیلترها را با Prisma پیدا می‌کنیم
+      /**
+       * ابتدا شناسه محصولات منطبق با فیلترها را می‌گیریم.
+       *
+       * پنجره مرتب‌سازی عمداً محدود است (PRICE_SORT_WINDOW): مرتب‌سازی بر
+       * اساس قیمت نیازمند ترکیب فیلترها با جدول قیمت است و بدون سقف،
+       * با رشد کاتالوگ کل شناسه‌ها در حافظه بارگذاری می‌شدند.
+       */
       const matchingStones = await db.stone.findMany({
         where,
         select: { id: true },
+        take: PRICE_SORT_WINDOW,
       })
 
       const matchingIds = matchingStones.map(s => s.id)
       const total = matchingIds.length
+      const truncated = total === PRICE_SORT_WINDOW
 
       if (total === 0) {
         return NextResponse.json({
@@ -152,6 +164,7 @@ export async function GET(req: NextRequest) {
           pageSize,
           total,
           totalPages: Math.ceil(total / pageSize),
+          truncated,
         },
       })
     }
@@ -281,6 +294,13 @@ export async function POST(req: NextRequest) {
         userId: auth.user.id,
         newValue: `محصول جدید با کد ${stone.code} ایجاد شد`,
       },
+    })
+
+    emitEvent('product.created', {
+      id: stone.id,
+      code: stone.code,
+      name: stone.name,
+      occurredAt: new Date().toISOString(),
     })
 
     return NextResponse.json({ success: true, data: stone })
