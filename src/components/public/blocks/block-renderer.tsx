@@ -963,7 +963,7 @@ export function BlockRenderer({
   }
 
   return (
-    <main className="overflow-hidden" style={{ background: LIGHT }}>
+    <div className="overflow-hidden" style={{ background: LIGHT }}>
       {ordered.map((block, index) => {
         const key = block.id || `${block.type}-${index}`
 
@@ -996,6 +996,6 @@ export function BlockRenderer({
             return null
         }
       })}
-    </main>
+    </div>
   )
 }
