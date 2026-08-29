@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
     const where = stoneId ? { stoneId } : {}
     const prices = await db.stonePrice.findMany({
       where,
+      take: 500,
       include: { stone: { select: { id: true, name: true, code: true } } },
       orderBy: [{ stoneId: 'asc' }, { type: 'asc' }],
     })
