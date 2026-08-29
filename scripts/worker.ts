@@ -1,6 +1,6 @@
 import 'dotenv/config'
-import { db } from '@/lib/db'
-import { checkSafeOutboundUrl } from '@/lib/url-safety'
+import { db } from '../src/lib/db'
+import { checkSafeOutboundUrl } from '../src/lib/url-safety'
 
 /**
  * پردازش‌گر Jobهای پس‌زمینه (ارسال Webhook و ...)
