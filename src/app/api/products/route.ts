@@ -12,6 +12,9 @@ import { emitEvent } from '@/lib/webhooks'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
 
+/** سقف تعداد آیتم در هر صفحه (جلوگیری از درخواست‌های سنگین) */
+const MAX_PAGE_SIZE = 100
+
 /** بیشترین تعداد محصولی که هنگام مرتب‌سازی بر اساس قیمت در نظر گرفته می‌شود */
 const PRICE_SORT_WINDOW = 5000
 
@@ -50,7 +53,7 @@ export async function GET(req: NextRequest) {
     // محدودسازی صفحه‌بندی برای جلوگیری از مصرف بیش از حد منابع
     const page = Number.isFinite(requestedPage) ? Math.min(Math.max(requestedPage, 1), 10_000) : 1
     const pageSize = Number.isFinite(requestedPageSize)
-      ? Math.min(Math.max(requestedPageSize, 1), 60)
+      ? Math.min(Math.max(requestedPageSize, 1), MAX_PAGE_SIZE)
       : 24
 
     // TODO: پس از prisma generate، از Prisma.StoneWhereInput استفاده شود
