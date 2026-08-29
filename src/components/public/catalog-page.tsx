@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useAppStore } from '@/store/app-store'
+import { sameParams } from '@/lib/app-url'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -199,6 +200,81 @@ export function CatalogPage() {
     fetch('/api/categories').then(r => r.json()).then(r => setCategories(r.data || []))
   }, [])
 
+  /**
+   * همگام‌سازی فیلترها با آدرسِ مرورگر
+   *
+   * - فیلترها → آدرس: لینکِ کاتالوگ قابلِ بوکمارک و اشتراک‌گذاری می‌شود
+   * - آدرس → فیلترها: با دکمه‌ی برگشت/جلو یا باز کردن لینک، همان فیلترها اعمال می‌شود
+   */
+  const urlParams = useMemo(() => {
+    const next: Record<string, string> = {}
+
+    if (search) next.q = search
+    if (category) next.category = category
+    if (isExport) next.export = 'true'
+    if (isFeatured) next.featured = 'true'
+    if (isNewest) next.newest = 'true'
+    if (isBestSeller) next.bestseller = 'true'
+    if (sort && sort !== 'newest') next.sort = sort
+    if (page > 1) next.page = String(page)
+
+    return next
+  }, [search, category, isExport, isFeatured, isNewest, isBestSeller, sort, page])
+
+  useEffect(() => {
+    if (sameParams(params, urlParams)) return
+    navigate('catalog', urlParams)
+  }, [urlParams, params, navigate])
+
+  /**
+   * آدرس → فیلترها
+   *
+   * از الگوی «تنظیم state در هنگام رندر» استفاده شده است (مستندات ری‌اکت)
+   * تا هنگام باز کردن یک لینکِ فیلترشده، یا زدن دکمه‌ی برگشت/جلو،
+   * همان فیلترها دوباره اعمال شوند.
+   */
+  const paramsKey = JSON.stringify({
+    q: params.q || '',
+    category: params.category || '',
+    export: params.export || '',
+    featured: params.featured || '',
+    newest: params.newest || '',
+    bestseller: params.bestseller || '',
+    sort: params.sort || '',
+    page: params.page || '',
+  })
+
+  const [syncedParamsKey, setSyncedParamsKey] = useState(paramsKey)
+
+  if (syncedParamsKey !== paramsKey) {
+    setSyncedParamsKey(paramsKey)
+
+    const source = JSON.parse(paramsKey) as Record<string, string>
+
+    setSearch(source.q || '')
+    setCategory(source.category || '')
+    setIsExport(source.export === 'true')
+    setIsFeatured(source.featured === 'true')
+    setIsNewest(source.newest === 'true')
+    setIsBestSeller(source.bestseller === 'true')
+    setSort(source.sort || 'newest')
+    setPage(Number(source.page) || 1)
+  }
+
+  /**
+   * تغییر هر فیلتر باید شماره صفحه را به اول برگرداند؛
+   * در غیر این صورت ممکن است کاربر روی صفحه‌ای بماند که با فیلترِ جدید
+   * دیگر وجود ندارد و فهرست خالی ببیند.
+   */
+  const resetPage = <T,>(
+    setter: React.Dispatch<React.SetStateAction<T>>
+  ): React.Dispatch<React.SetStateAction<T>> => {
+    return (value) => {
+      setter(value)
+      setPage(1)
+    }
+  }
+
   const fetchStones = useCallback(async () => {
     const params = new URLSearchParams()
     if (search) params.set('q', search)
@@ -258,24 +334,24 @@ export function CatalogPage() {
       search={search}
       setSearch={setSearch}
       category={category}
-      setCategory={setCategory}
+      setCategory={resetPage(setCategory)}
       categories={categories}
       color={color}
-      setColor={setColor}
+      setColor={resetPage(setColor)}
       finish={finish}
-      setFinish={setFinish}
+      setFinish={resetPage(setFinish)}
       thickness={thickness}
-      setThickness={setThickness}
+      setThickness={resetPage(setThickness)}
       inStock={inStock}
-      setInStock={setInStock}
+      setInStock={resetPage(setInStock)}
       isExport={isExport}
-      setIsExport={setIsExport}
+      setIsExport={resetPage(setIsExport)}
       isFeatured={isFeatured}
-      setIsFeatured={setIsFeatured}
+      setIsFeatured={resetPage(setIsFeatured)}
       isNewest={isNewest}
-      setIsNewest={setIsNewest}
+      setIsNewest={resetPage(setIsNewest)}
       isBestSeller={isBestSeller}
-      setIsBestSeller={setIsBestSeller}
+      setIsBestSeller={resetPage(setIsBestSeller)}
       clearFilters={clearFilters}
       handleSearch={handleSearch}
       t={t}
@@ -343,7 +419,7 @@ export function CatalogPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Select value={sort} onValueChange={setSort}>
+                <Select value={sort} onValueChange={resetPage(setSort)}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder={t('common.sort')} />
                   </SelectTrigger>
