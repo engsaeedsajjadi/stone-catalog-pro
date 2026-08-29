@@ -1,253 +1,36 @@
 import { getDefaultHomeBlocks } from "@/lib/site-blocks";
 
-/* =========================================================
- * Types
- * ======================================================= */
+import type {
+  SiteBlock,
+  SiteBlockData,
+  SiteBlockType,
+  SitePage,
+  SiteNavItem,
+  SiteBrand,
+  SiteSeo,
+  SiteContact,
+  SiteSocial,
+  SiteAppearance,
+  SiteTheme,
+  SiteFooter,
+  SiteConfig,
+} from "@/lib/site-config-types";
 
-/* =========================================================
- * Site Block
- * ======================================================= */
-
-export type SiteBlockType =
-  | "hero"
-  | "richtext"
-  | "image-text"
-  | "products"
-  | "categories"
-  | "features"
-  | "stats"
-  | "gallery"
-  | "testimonials"
-  | "cta"
-  | "contact"
-  | "spacer"
-  | string;
-
-export type SiteBlockData = Record<string, any>;
-
-export type SiteBlock = {
-  id?: string;
-  type: SiteBlockType;
-
-  enabled?: boolean;
-  order: number;
-
-  title?: string;
-  subtitle?: string;
-  description?: string;
-
-  image?: string;
-  imageUrl?: string;
-
-  href?: string;
-  buttonText?: string;
-  content?: string;
-
-  /**
-   * محتوای اختصاصی هر نوع Block
-   */
-  data?: SiteBlockData;
-
-  [key: string]: any;
+export type {
+  SiteBlock,
+  SiteBlockData,
+  SiteBlockType,
+  SitePage,
+  SiteNavItem,
+  SiteBrand,
+  SiteSeo,
+  SiteContact,
+  SiteSocial,
+  SiteAppearance,
+  SiteTheme,
+  SiteFooter,
+  SiteConfig,
 };
-
-/* =========================================================
- * Page
- * ======================================================= */
-
-export type SitePage = {
-  slug: string;
-  title: string;
-  published?: boolean;
-  blocks: SiteBlock[];
-  [key: string]: any;
-};
-
-/* =========================================================
- * Navigation
- * ======================================================= */
-
-export type SiteNavItem = {
-  id?: string;
-  label: string;
-  href: string;
-  enabled: boolean;
-  order: number;
-  [key: string]: any;
-};
-
-/* =========================================================
- * Brand
- * ======================================================= */
-
-export type SiteBrand = {
-  nameFa: string;
-  nameEn: string;
-
-  taglineFa?: string;
-  taglineEn?: string;
-
-  logo?: string;
-  favicon?: string;
-
-  logoUrl?: string;
-  logoMediaId?: string;
-
-  description?: string;
-
-  phone?: string;
-  email?: string;
-  whatsapp?: string;
-
-  city?: string;
-  country?: string;
-  address?: string;
-
-  workingHours?: string;
-
-  instagram?: string;
-  telegram?: string;
-  youtube?: string;
-  linkedin?: string;
-  facebook?: string;
-
-  mapUrl?: string;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * SEO
- * ======================================================= */
-
-export type SiteSeo = {
-  title: string;
-  description: string;
-
-  keywords?: string;
-
-  ogImage?: string;
-
-  canonical?: string;
-  twitterHandle?: string;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Contact
- * ======================================================= */
-
-export type SiteContact = {
-  phone?: string;
-  email?: string;
-  whatsapp?: string;
-
-  country?: string;
-  city?: string;
-  address?: string;
-
-  workingHours?: string;
-
-  mapUrl?: string;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Social
- * ======================================================= */
-
-export type SiteSocial = {
-  instagram?: string;
-  telegram?: string;
-  whatsapp?: string;
-  linkedin?: string;
-  facebook?: string;
-  youtube?: string;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Appearance
- * ======================================================= */
-
-export type SiteAppearance = {
-  primaryColor?: string;
-  secondaryColor?: string;
-  fontFamily?: string;
-  darkMode?: boolean;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Theme
- * ======================================================= */
-
-export type SiteTheme = {
-  primary?: string;
-  secondary?: string;
-  accent?: string;
-
-  background?: string;
-  foreground?: string;
-  muted?: string;
-
-  radius?: string;
-
-  font?: string;
-
-  cardStyle?: "soft" | "flat" | "bordered" | string;
-
-  buttonStyle?: "rounded" | "pill" | "square" | string;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Footer
- * ======================================================= */
-
-export type SiteFooter = {
-  text?: string;
-  copyright?: string;
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Main Site Config
- * ======================================================= */
-
-export type SiteConfig = {
-  brand: SiteBrand;
-
-  seo: SiteSeo;
-
-  contact: SiteContact;
-
-  social: SiteSocial;
-
-  appearance: SiteAppearance;
-
-  theme: SiteTheme;
-
-  nav: SiteNavItem[];
-
-  pages: Record<string, SitePage>;
-
-  footer: SiteFooter;
-
-  blocks: SiteBlock[];
-
-  [key: string]: any;
-};
-
-/* =========================================================
- * Defaults & Merge (pure – safe to import in tests)
- * ======================================================= */
 
 /* =========================================================
  * Default Pages

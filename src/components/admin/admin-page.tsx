@@ -53,7 +53,10 @@ export function AdminPage() {
     { id: 'customers', label: t('admin.customers'), icon: Users },
     { id: 'inquiries', label: t('admin.inquiries'), icon: FileText },
     { id: 'categories', label: t('admin.categories'), icon: Tag },
-    { id: 'settings', label: t('admin.settings'), icon: Settings },
+    // تنظیمات کلی فقط برای مدیر سیستم در دسترس است
+    ...(user?.role === 'ADMIN'
+      ? [{ id: 'settings', label: t('admin.settings'), icon: Settings }]
+      : []),
     { id: 'designer', label: 'طراحی سایت', icon: Sparkles },
   ]
 
@@ -2361,9 +2364,24 @@ function CategoryFormModal({ mode, category, parentCategories, onSave, onClose }
 function SettingsTab() {
   const [settings, setSettings] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/settings').then(r => r.json()).then(d => { setSettings(d.data || {}); setLoading(false) })
+    fetch('/api/settings')
+      .then(async (r) => {
+        if (!r.ok) {
+          setError('فقط مدیر سیستم به این بخش دسترسی دارد')
+          setLoading(false)
+          return
+        }
+        const d = await r.json()
+        setSettings(d.data || {})
+        setLoading(false)
+      })
+      .catch(() => {
+        setError('دریافت تنظیمات ناموفق بود')
+        setLoading(false)
+      })
   }, [])
 
   const handleSave = async () => {
@@ -2376,6 +2394,14 @@ function SettingsTab() {
   }
 
   if (loading) return <div className="h-64 rounded-xl shimmer" />
+
+  if (error) {
+    return (
+      <Card className="p-8 text-center">
+        <p className="text-muted-foreground">{error}</p>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-4 max-w-3xl">

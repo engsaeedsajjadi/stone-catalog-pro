@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  Clock,
   Mail,
   MapPin,
   Phone,
@@ -832,6 +833,15 @@ function ContactBlock({ block }: { block: SiteBlock }) {
   const phone = site.brand.phone || ''
   const email = site.brand.email || ''
   const address = site.brand.address || ''
+  const whatsapp = site.brand.whatsapp || ''
+  const mapUrl = site.brand.mapUrl || ''
+  const workingHours = site.brand.workingHours || ''
+
+  const whatsappHref = whatsapp
+    ? /^https?:\/\//i.test(whatsapp)
+      ? whatsapp
+      : `https://wa.me/${whatsapp.replace(/[^\d]/g, '')}`
+    : ''
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -889,8 +899,41 @@ function ContactBlock({ block }: { block: SiteBlock }) {
                 <span>{address}</span>
               </div>
             )}
-            {!phone && !email && !address && (
+            {workingHours && (
+              <div className="flex items-center gap-3">
+                <Clock className="h-4 w-4" style={{ color: '#8a6d2f' }} />
+                <span>{workingHours}</span>
+              </div>
+            )}
+            {!phone && !email && !address && !workingHours && (
               <p className="text-muted-foreground">اطلاعات تماس در بخش «برند و اطلاعات کسب‌وکار» تنظیم می‌شود.</p>
+            )}
+
+            {(whatsappHref || mapUrl) && (
+              <div className="mt-5 flex flex-wrap gap-3">
+                {whatsappHref && (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-none px-5 py-2.5 text-sm font-bold text-[#17130d]"
+                    style={{ background: GOLD }}
+                  >
+                    گفتگو در واتساپ
+                  </a>
+                )}
+
+                {mapUrl && (
+                  <a
+                    href={mapUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-none border border-black/15 px-5 py-2.5 text-sm font-bold"
+                  >
+                    مشاهده روی نقشه
+                  </a>
+                )}
+              </div>
             )}
           </div>
         </Reveal>
