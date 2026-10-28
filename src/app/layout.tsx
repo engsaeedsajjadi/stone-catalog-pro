@@ -1,11 +1,28 @@
-import type { Metadata } from 'next'
+import type { Metadata } from "next";
 
-import './globals.css'
+import "./globals.css";
+import localFont from "next/font/local";
+const vazirmatn = localFont({
+  src: [
+    {
+      path: "../../public/fonts/Vazirmatn-Regular.ttf",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../../public/fonts/Vazirmatn-Bold.ttf",
+      weight: "700",
+      style: "normal",
+    },
+  ],
+  variable: "--font-vazirmatn",
+  display: "swap",
+});
 
-import { getSiteConfig } from '@/lib/site-config'
-import { AppShell } from '@/components/public/app-shell'
+import { getSiteConfig } from "@/lib/site-config";
+import { AppShell } from "@/components/public/app-shell";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 /**
  * متادیتا از تنظیمات سایت (بخش SEO و برند) و به‌صورت سمت‌سرور تولید می‌شود
@@ -13,27 +30,27 @@ export const dynamic = 'force-dynamic'
  */
 export async function generateMetadata(): Promise<Metadata> {
   try {
-    const config = await getSiteConfig()
+    const config = await getSiteConfig();
 
     const title =
       config.seo.title ||
       config.brand.nameFa ||
       config.brand.nameEn ||
-      'Digital Catalog'
+      "Digital Catalog";
 
     const description =
       config.seo.description ||
       config.brand.taglineFa ||
       config.brand.taglineEn ||
-      ''
+      "";
 
-    const base = process.env.NEXT_PUBLIC_APP_URL
-    const icon = config.brand.faviconUrl || config.brand.logoUrl || undefined
+    const base = process.env.NEXT_PUBLIC_APP_URL;
+    const icon = config.brand.faviconUrl || config.brand.logoUrl || undefined;
 
-    const keywords = (config.seo.keywords || '')
-      .split(',')
+    const keywords = (config.seo.keywords || "")
+      .split(",")
       .map((keyword) => keyword.trim())
-      .filter(Boolean)
+      .filter(Boolean);
 
     return {
       title: { default: title, template: `%s | ${title}` },
@@ -45,35 +62,36 @@ export async function generateMetadata(): Promise<Metadata> {
       },
       icons: icon ? { icon, apple: icon } : undefined,
       openGraph: {
-        type: 'website',
+        type: "website",
         title,
         description,
         siteName: title,
-        locale: 'fa_IR',
+        locale: "fa_IR",
         images: config.seo.ogImage ? [{ url: config.seo.ogImage }] : undefined,
       },
       twitter: {
-        card: 'summary_large_image',
+        card: "summary_large_image",
         title,
         description,
         site: config.seo.twitterHandle || undefined,
         images: config.seo.ogImage ? [config.seo.ogImage] : undefined,
       },
       robots: { index: true, follow: true },
-    }
+    };
   } catch {
-    return { title: 'Digital Catalog', robots: { index: true, follow: true } }
+    return { title: "Digital Catalog", robots: { index: true, follow: true } };
   }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const config = await getSiteConfig();
   return (
     <html lang="fa" dir="rtl">
-      <body>
-        <AppShell>{children}</AppShell>
+      <body className={vazirmatn.variable}>
+        <AppShell initialConfig={config}>{children}</AppShell>
       </body>
     </html>
-  )
+  );
 }

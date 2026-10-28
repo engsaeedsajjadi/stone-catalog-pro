@@ -8,6 +8,11 @@ services:
       POSTGRES_PASSWORD: stone
     ports:
       - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stone -d stone_catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -19,14 +24,28 @@ services:
     volumes:
       - redis_data:/data
 
+  migrate:
+    build:
+      context: .
+      target: worker
+    command: ["npx", "prisma", "migrate", "deploy"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://stone:stone@db:5432/stone_catalog?schema=public
+
   worker:
     build:
       context: .
       target: worker
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://stone:stone@db:5432/stone_catalog?schema=public
       REDIS_URL: redis://redis:6379
@@ -37,8 +56,10 @@ services:
     build: .
     restart: unless-stopped
     depends_on:
-      - db
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
     ports:
       - "3000:3000"
     environment:

@@ -6,11 +6,12 @@ import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
 import { z } from 'zod'
+import { normalizePhone } from '@/lib/phone'
 import { emitEvent } from '@/lib/webhooks'
 
 const contactSchema = z.object({
   customerName: z.string().min(2).max(200),
-  customerPhone: z.string().min(5).max(30),
+  customerPhone: z.string().trim().transform(normalizePhone).pipe(z.string().regex(/^(?:09[0-9]{9}|\+[1-9][0-9]{7,14})$/, 'شماره تماس معتبر وارد کنید.')),
   customerEmail: z.string().email().optional().or(z.literal('')),
   message: z.string().min(5).max(5000),
 })

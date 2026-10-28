@@ -1,5 +1,7 @@
 "use client"
 
+import { apiFetch } from "@/lib/api-fetch"
+
 import {
   useEffect,
   useMemo,
@@ -255,7 +257,7 @@ export function SiteDesigner() {
   useEffect(() => {
     let mounted = true
 
-    fetch("/api/site-config", {
+    apiFetch("/api/site-config", {
       cache: "no-store",
     })
       .then(async (response) => {
@@ -409,7 +411,7 @@ export function SiteDesigner() {
     setSaving(true)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         "/api/site-config",
         {
           method: "PUT",

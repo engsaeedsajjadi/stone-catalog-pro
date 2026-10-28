@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createZarinpalPayment } from '@/lib/payments'
-import { requireAuth } from '@/lib/auth'
+import { STAFF_ROLES, requireAuth } from '@/lib/auth'
 import { z } from 'zod'
 
 const requestSchema = z.object({
@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (!STAFF_ROLES.includes(auth.user.role) && order.assigneeId !== auth.user.id) {
+      return NextResponse.json({ success: false, error: 'دسترسی به این سفارش ندارید.' }, { status: 403 })
+    }
+
     if (order.paymentStatus === 'PAID') {
       return NextResponse.json(
         { success: false, error: 'این سفارش قبلاً پرداخت شده است' },
@@ -45,9 +49,10 @@ export async function POST(req: NextRequest) {
 
     const result = await createZarinpalPayment(
       order.id,
-      Math.round(order.totalAmount),
+      order.totalAmount,
       callback,
-      `Order ${order.orderNumber}`
+      `Order ${order.orderNumber}`,
+      order.currency
     )
 
     await db.payment.create({
@@ -57,6 +62,8 @@ export async function POST(req: NextRequest) {
         currency: order.currency,
         gateway: 'ZARINPAL',
         gatewayRefId: result.authority,
+        gatewayAmount: result.gatewayAmount,
+        gatewayCurrency: result.gatewayCurrency,
         status: 'PENDING',
       },
     })

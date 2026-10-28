@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
 import { z } from 'zod'
+import { inventoryValuesSchema } from '@/lib/catalog-validation'
 
 /**
  * اعتبارسنجی ورودی موجودی
@@ -14,21 +15,7 @@ import { z } from 'zod'
  * بدون این لایه، ارسال مقدار غیرعددی باعث خطای پایگاه‌داده و پاسخ ۵۰۰ می‌شد
  * و مقدارِ منفی هم بدون بررسی ذخیره می‌شد.
  */
-const inventorySchema = z.object({
-  stoneId: z.string().min(1).max(64),
-
-  slabCount: z.coerce.number().int().min(0).max(1_000_000).default(0),
-  blockCount: z.coerce.number().int().min(0).max(1_000_000).default(0),
-
-  totalSqm: z.coerce.number().min(0).max(100_000_000).default(0),
-  availableSqm: z.coerce.number().min(0).max(100_000_000).optional(),
-  reservedSqm: z.coerce.number().min(0).max(100_000_000).default(0),
-  inProductionSqm: z.coerce.number().min(0).max(100_000_000).default(0),
-
-  warehouseCode: z.string().trim().min(1).max(32).default('MAIN'),
-  warehouseName: z.string().trim().max(100).default('انبار مرکزی'),
-  location: z.string().trim().max(200).optional(),
-})
+const inventorySchema = z.object({ stoneId: z.string().min(1).max(64), inventory: inventoryValuesSchema }).transform(({stoneId,inventory}) => ({stoneId,...inventory}))
 
 export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN','SALES_MANAGER','OPERATOR'])
@@ -44,7 +31,7 @@ export async function PUT(req: NextRequest) {
     )
   }
   try {
-    const parsed = inventorySchema.safeParse(await req.json())
+    const parsed = inventorySchema.safeParse(await req.json().then(body => ({stoneId:body.stoneId, inventory:body})))
 
     if (!parsed.success) {
       return NextResponse.json(

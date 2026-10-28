@@ -9,6 +9,8 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAuth(_req, ['ADMIN', 'SALES_MANAGER', 'OPERATOR'])
+  if ('response' in auth) return auth.response
   try {
     const { id } = await params
     const customer = await db.customer.findUnique({

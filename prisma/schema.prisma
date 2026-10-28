@@ -389,6 +389,8 @@ model Payment {
   gateway        String
   gatewayRefId   String?
   gatewayTrackId String?
+  gatewayAmount  Float?
+  gatewayCurrency String?
   status         String    @default("PENDING")
   cardNumber     String?
   paidAt         DateTime?

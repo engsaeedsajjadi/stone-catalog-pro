@@ -90,3 +90,19 @@ describe('router store', () => {
     expect(useAppStore.getState().route).toBe('home')
   })
 })
+
+it('revokes the server session before clearing the client user', async () => {
+  const mock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }))
+  useAppStore.getState().login({ id: 'u1', name: 'Review', email: 'review@example.test', role: 'ADMIN' })
+  await useAppStore.getState().logout()
+  expect(mock).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' })
+  expect(useAppStore.getState().user).toBeNull()
+  mock.mockRestore()
+})
+it('keeps the client session visible when server logout fails', async () => {
+  const mock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 500 }))
+  useAppStore.getState().login({ id: 'u1', name: 'Review', email: 'review@example.test', role: 'ADMIN' })
+  await expect(useAppStore.getState().logout()).rejects.toThrow()
+  expect(useAppStore.getState().user?.id).toBe('u1')
+  mock.mockRestore()
+})

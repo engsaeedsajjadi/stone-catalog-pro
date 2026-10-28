@@ -21,7 +21,9 @@ interface AppState {
   // authenticated user loaded from httpOnly server session
   user: { id: string; email: string; name: string; role: string } | null
   login: (u: { id: string; email: string; name: string; role: string }) => void
-  logout: () => void
+  authReady: boolean
+  setSession: (user: AppState['user']) => void
+  logout: () => Promise<void>
 
   // SPA router state
   route: string
@@ -626,15 +628,6 @@ const translations: Record<Language, Record<string, string>> = {
 }
 
 // ============ CURRENCY ============
-export const CURRENCY_RATES: Record<Currency, number> = {
-  IRR: 1,        // base
-  IRT: 0.1,      // 10 rial = 1 toman
-  USD: 0.000018, // 1 rial ≈ $0.000018
-  EUR: 0.000017,
-  AED: 0.000066,
-  RUB: 0.0017,
-}
-
 export const CURRENCY_SYMBOLS: Record<Currency, string> = {
   IRR: 'ریال',
   IRT: 'تومان',
@@ -659,8 +652,16 @@ export const useAppStore = create<AppState>()(
       setCurrency: (currency) => set({ currency }),
 
       user: null,
-      login: (user) => set({ user }),
-      logout: () => set({ user: null, route: 'home' }),
+      authReady: false,
+      setSession: (user) => set({ user, authReady: true }),
+      login: (user) => set({ user, authReady: true }),
+      logout: async () => {
+        const response = await fetch('/api/auth/logout', { method: 'POST' })
+        if (!response.ok) throw new Error('خروج انجام نشد؛ دوباره تلاش کنید.')
+        set({ user: null, authReady: true })
+        try { if (typeof window !== 'undefined') window.localStorage.setItem('stone-session-ended', String(Date.now())) } catch {}
+        get().navigate('home')
+      },
 
       route: 'home',
       params: {},
@@ -675,6 +676,7 @@ export const useAppStore = create<AppState>()(
       navigate: (route, params = {}, options = {}) => {
         if (typeof window !== 'undefined') {
           const target = buildAppUrl(route, params)
+          if (window.location.pathname !== '/') { window.location.assign(target); return }
           const current = window.location.pathname + window.location.search
           const sameRoute = get().route === route
 
@@ -753,13 +755,11 @@ export const useAppStore = create<AppState>()(
 )
 
 // ============ HELPERS ============
-export function formatPrice(amount: number, currency: Currency = 'IRR'): string {
-  const rate = CURRENCY_RATES[currency] || 1
-  const converted = amount * rate
-  const symbol = CURRENCY_SYMBOLS[currency]
-
-  if (currency === 'IRR' || currency === 'IRT') {
-    return `${Math.round(converted).toLocaleString('en-US')} ${symbol}`
-  }
-  return `${symbol}${converted.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
+/** Exact rial/toman units only; other currencies require a stored price. */
+export function formatPrice(amount: number, currency: Currency = 'IRR', sourceCurrency: Currency = 'IRR'): string {
+  if (!Number.isFinite(amount) || amount <= 1) return 'نیاز به استعلام'
+  const local = ['IRR', 'IRT']
+  if (sourceCurrency !== currency && !(local.includes(sourceCurrency) && local.includes(currency))) return 'نیاز به استعلام'
+  const converted = sourceCurrency === currency ? amount : amount * (currency === 'IRT' ? .1 : 10)
+  return `${converted.toLocaleString('fa-IR', { maximumFractionDigits: 2 })} ${CURRENCY_SYMBOLS[currency]}`
 }

@@ -210,9 +210,8 @@ function getLocalStorageBase(): string {
       "uploads"
     )
 
-  return path.resolve(
-    configuredBase
-  )
+  // Uploaded files live in runtime storage/volumes, outside the server bundle.
+  return path.resolve(/*turbopackIgnore: true*/ configuredBase)
 }
 
 function resolveLocalStoragePath(
@@ -246,11 +245,8 @@ function resolveLocalStoragePath(
     getLocalStorageBase()
 
   const target =
-    path.resolve(
-      path.join(
-        base,
-        normalized
-      )
+    path.resolve(/*turbopackIgnore: true*/
+      path.join(/*turbopackIgnore: true*/ base, normalized)
     )
 
   const baseWithSeparator =
@@ -742,7 +738,7 @@ export async function readStoredFile(
 
   return {
     data:
-      await readFile(target),
+      await readFile(/*turbopackIgnore: true*/ target),
 
     contentType:
       "application/octet-stream",

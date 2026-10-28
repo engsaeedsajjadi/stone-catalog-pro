@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
       topStones,
       inquiriesByStatus,
       inquiriesByDay,
+      dataQuality,
     ] = await Promise.all([
       db.stone.count(),
       db.customer.count(),
@@ -82,6 +83,15 @@ export async function GET(req: NextRequest) {
         }
         return days
       })(),
+      (async () => {
+        const [missingImages, missingPrices, missingSpecs, inconsistent] = await Promise.all([
+          db.stone.count({where:{images:{none:{}}}}),
+          db.stone.count({where:{prices:{none:{isActive:true,amount:{gt:1},type:{in:['PER_SQM','PER_SLAB','EXPORT']},validFrom:{lte:new Date()},OR:[{validUntil:null},{validUntil:{gt:new Date()}}]}}}}),
+          db.stone.count({where:{OR:[{width:null},{length:null},{thickness:null}]}}),
+          db.$queryRaw<Array<{count:bigint}>>`SELECT COUNT(*) AS count FROM "Inventory" WHERE "availableSqm" + "reservedSqm" > "totalSqm" OR "availableSqm" < 0 OR "reservedSqm" < 0 OR "totalSqm" < 0`,
+        ])
+        return {missingImages,missingPrices,missingSpecs,inconsistentInventory:Number(inconsistent[0]?.count || 0)}
+      })(),
     ])
 
 
@@ -122,6 +132,7 @@ export async function GET(req: NextRequest) {
         inquiriesByStatus,
         inquiriesByDay,
         categoryStats,
+        dataQuality,
       },
     })
   } catch (e) {

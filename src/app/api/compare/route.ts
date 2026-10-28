@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     }
 
     const viewer = await getViewer(req)
-    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+    const serializeOptions = { restrictPrices: !viewer.canViewTradePrices }
 
     const { searchParams } = new URL(req.url)
     const ids = (searchParams.get('ids')?.split(',').filter(Boolean) || []).slice(0, 6)

@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { db } from '@/lib/db'
+import { inventoryValuesSchema, priceValuesSchema } from '@/lib/catalog-validation'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
 import { isContentTooLarge } from '@/lib/request'
@@ -76,11 +77,11 @@ async function importCategories(rows: any[][]) {
         const beforeMain = await db.category.findFirst({ where: { name: mainName, parentId: null } })
         const main = await getOrCreateCategory(mainName, null, i)
         if (!main) continue
-        beforeMain ? result.updated++ : result.created++
+        if (beforeMain) result.updated++; else result.created++
         if (subName) {
           const beforeSub = await db.category.findFirst({ where: { name: subName, parentId: main.id } })
           await getOrCreateCategory(subName, main.id, i)
-          beforeSub ? result.updated++ : result.created++
+          if (beforeSub) result.updated++; else result.created++
         }
       } catch (e) {
         result.errors.push(`سطر ${i + 1}: ${e instanceof Error ? e.message : 'خطا در ایجاد دسته'}`)
@@ -99,7 +100,7 @@ async function importCategories(rows: any[][]) {
       const beforeMain = await db.category.findFirst({ where: { name: mainName, parentId: null } })
       const main = await getOrCreateCategory(mainName, null, col + 1)
       if (!main) continue
-      beforeMain ? result.updated++ : result.created++
+      if (beforeMain) result.updated++; else result.created++
 
       let childOrder = 1
       for (let row = 1; row < rows.length; row++) {
@@ -107,7 +108,7 @@ async function importCategories(rows: any[][]) {
         if (!childName) continue
         const beforeChild = await db.category.findFirst({ where: { name: childName, parentId: main.id } })
         await getOrCreateCategory(childName, main.id, childOrder++)
-        beforeChild ? result.updated++ : result.created++
+        if (beforeChild) result.updated++; else result.created++
       }
     } catch (e) {
       result.errors.push(`ستون ${col + 1} (${mainName}): ${e instanceof Error ? e.message : 'خطا در ایجاد دسته'}`)
@@ -212,6 +213,7 @@ async function importProducts(rows: any[][]) {
       ] as const
       for (const [type, currency, raw] of pricePairs) {
         if (normalize(raw) === '') continue
+        priceValuesSchema.parse({ type, currency, amount: num(raw) })
         const existingPrice = await db.stonePrice.findFirst({ where: { stoneId: stone.id, type, currency } })
         if (existingPrice) {
           await db.stonePrice.update({ where: { id: existingPrice.id }, data: { amount: num(raw), isActive: true, updatedAt: new Date() } })
@@ -229,6 +231,7 @@ async function importProducts(rows: any[][]) {
           lastUpdated: new Date(),
         }
         inventoryValues.reservedSqm = Math.max(0, inventoryValues.totalSqm - inventoryValues.availableSqm)
+        inventoryValuesSchema.parse(inventoryValues)
         await db.inventory.upsert({
           where: { stoneId_warehouseId: { stoneId: stone.id, warehouseId: warehouse.id } },
           update: inventoryValues,
@@ -343,6 +346,7 @@ export async function POST(req: NextRequest) {
           const upsertLegacyPrice = async (type:string, currency:string, raw:any) => {
             if (normalize(raw) === '') return
             const amount = num(raw)
+            priceValuesSchema.parse({type,currency,amount})
             const existingPrice = await db.stonePrice.findFirst({where:{stoneId:stone.id,type,currency}})
             if (existingPrice) await db.stonePrice.update({where:{id:existingPrice.id},data:{amount,isActive:true,updatedAt:new Date()}})
             else await db.stonePrice.create({data:{stoneId:stone.id,type,currency,amount,isActive:true}})
@@ -355,6 +359,7 @@ export async function POST(req: NextRequest) {
           const slabCount = slabCountIndex >= 0 ? num(r[slabCountIndex]) : num(r[16])
           const totalSqm = totalSqmIndex >= 0 ? num(r[totalSqmIndex]) : num(r[17])
           const availableSqm = availableSqmIndex >= 0 ? num(r[availableSqmIndex]) : num(r[18])
+          inventoryValuesSchema.parse({slabCount,totalSqm,availableSqm,reservedSqm:Math.max(0,totalSqm-availableSqm)})
           await db.inventory.updateMany({where:{stoneId:stone.id},data:{slabCount:Math.round(slabCount),totalSqm,availableSqm,reservedSqm:Math.max(0,totalSqm-availableSqm),lastUpdated:new Date()}})
           result.updated++
         }catch(e){result.errors.push(`سطر ${i+1}: ${e instanceof Error?e.message:'خطا'}`)}
