@@ -23,13 +23,12 @@ export async function POST(req: NextRequest) {
     if (!user.isActive) return NextResponse.json({ success: false, error: 'حساب کاربری غیرفعال است' }, { status: 403 })
 
     const refreshToken = issueRefreshToken()
-    const accessToken = issueAccessToken(user)
-    await db.session.create({ data: { userId: user.id, tokenHash: hashToken(refreshToken), expiresAt: new Date(Date.now() + REFRESH_TTL_MS), userAgent: req.headers.get('user-agent') || undefined, ipAddress: ip } })
+        const session = await db.session.create({ data: { userId: user.id, tokenHash: hashToken(refreshToken), expiresAt: new Date(Date.now() + REFRESH_TTL_MS), userAgent: req.headers.get('user-agent') || undefined, ipAddress: ip } })
     await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
     await db.activityLog.create({ data: { userId: user.id, action: 'LOGIN', entity: 'USER', entityId: user.id, ipAddress: ip, userAgent: req.headers.get('user-agent') || undefined } })
 
     const response = NextResponse.json({ success: true, data: { id: user.id, email: user.email, name: user.name, role: user.role, phone: user.phone } })
-    await setAuthCookies(response, accessToken, refreshToken)
+    await setAuthCookies(response, issueAccessToken(user, session.id), refreshToken)
     return response
   } catch (e) { console.error('POST /api/auth/login error:', e); return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 }) }
 }

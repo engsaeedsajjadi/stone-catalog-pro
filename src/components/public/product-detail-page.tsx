@@ -1,26 +1,37 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
+import { PUBLIC_PRICE_TYPES } from "@/lib/stone-serialize";
 import {
-  useAppStore,
-  formatPrice,
-} from '@/store/app-store'
-
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-
+  isUsablePrice,
+  inventorySummary,
+  selectDisplayPrice,
+  priceLabel,
+  specValue,
+  dimensionsLabel,
+} from "@/lib/product-presentation";
+import { normalizePhone } from "@/lib/phone";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs'
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { apiFetch } from "@/lib/api-fetch";
 
-import { Input } from '@/components/ui/input'
-import { getInventory } from '@/lib/stone-serialize'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { useEffect, useState } from "react";
+import { useAppStore } from "@/store/app-store";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import { Input } from "@/components/ui/input";
+import { getInventory } from "@/lib/stone-serialize";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 import {
   Heart,
@@ -48,76 +59,62 @@ import {
   Send,
   FileText,
   Copy,
-} from 'lucide-react'
+} from "lucide-react";
 
-import { ProductCard } from '@/components/stone/product-card'
-import { toast } from 'sonner'
+import { ProductCard } from "@/components/stone/product-card";
+import { toast } from "sonner";
 
-type StoneDetail = any
+type StoneDetail = any;
 
-function siteBrandForSeo(
-  stone: any
-) {
+function siteBrandForSeo(stone: any) {
   return stone?.category?.name
     ? {
-        '@type': 'Brand',
+        "@type": "Brand",
         name: stone.category.name,
       }
-    : undefined
+    : undefined;
 }
 
 export function ProductDetailPage({
   initialProductId,
 }: {
-  initialProductId?: string
+  initialProductId?: string;
 } = {}) {
   const {
     params,
     navigate,
     currency,
+    user,
     toggleFavorite,
     favorites,
     toggleCompare,
     compareList,
     t,
-  } = useAppStore()
+  } = useAppStore();
 
-  const [stone, setStone] =
-    useState<StoneDetail>(null)
+  const [stone, setStone] = useState<StoneDetail>(null);
 
   /*
    * اگر شناسه‌ای وجود نداشته باشد نباید در حالت بارگذاری بمانیم،
    * پس مقدار اولیه از روی همان شناسه محاسبه می‌شود.
    */
-  const [loading, setLoading] =
-    useState(() =>
-      Boolean(
-        initialProductId ||
-          params.id ||
-          params.slug
-      )
-    )
+  const [loading, setLoading] = useState(() =>
+    Boolean(initialProductId || params.id || params.slug),
+  );
 
-  const [activeImage, setActiveImage] =
-    useState(0)
+  const [activeImage, setActiveImage] = useState(0);
 
-  const [zoomOpen, setZoomOpen] =
-    useState(false)
+  const [zoomOpen, setZoomOpen] = useState(false);
 
-  const [fullscreenOpen, setFullscreenOpen] =
-    useState(false)
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
 
-  const [inquiryOpen, setInquiryOpen] =
-    useState(false)
+  const [inquiryOpen, setInquiryOpen] = useState(false);
 
-  const [qrOpen, setQrOpen] =
-    useState(false)
+  const [qrOpen, setQrOpen] = useState(false);
 
-  const [activeTab, setActiveTab] =
-    useState('specs')
+  const [activeTab, setActiveTab] = useState("specs");
 
-  const [frame360, setFrame360] =
-    useState(0)
+  const [frame360, setFrame360] = useState(0);
 
   /*
    * Product identifier.
@@ -127,158 +124,116 @@ export function ProductDetailPage({
    * 2. params.id
    * 3. params.slug
    */
-  const productIdentifier =
-    initialProductId ||
-    params.id ||
-    params.slug ||
-    ''
+  const productIdentifier = initialProductId || params.id || params.slug || "";
 
   useEffect(() => {
-    if (!productIdentifier) return
+    if (!productIdentifier) return;
 
-    let cancelled = false
+    let cancelled = false;
 
-    ;(async () => {
+    (async () => {
       try {
-        const response =
-          await fetch(
-            `/api/products/${encodeURIComponent(
-              String(productIdentifier)
-            )}`,
-            {
-              cache: 'no-store',
-            }
-          )
+        const response = await apiFetch(
+          `/api/products/${encodeURIComponent(String(productIdentifier))}`,
+          {
+            cache: "no-store",
+          },
+        );
 
         if (!response.ok) {
-          throw new Error(
-            `Product request failed: ${response.status}`
-          )
+          throw new Error(`Product request failed: ${response.status}`);
         }
 
-        const data =
-          await response.json()
+        const data = await response.json();
 
         if (!data?.data) {
-          throw new Error(
-            data?.error ||
-              'محصول یافت نشد'
-          )
+          throw new Error(data?.error || "محصول یافت نشد");
         }
 
         if (!cancelled) {
-          setStone(data.data)
+          setStone(data.data);
         }
       } catch (error) {
-        console.error(
-          'Failed to load product:',
-          error
-        )
+        console.error("Failed to load product:", error);
 
         if (!cancelled) {
-          setStone(null)
+          setStone(null);
         }
       } finally {
         if (!cancelled) {
-          setLoading(false)
+          setLoading(false);
         }
       }
-    })()
+    })();
 
     return () => {
-      cancelled = true
-    }
-  }, [productIdentifier])
+      cancelled = true;
+    };
+  }, [productIdentifier]);
 
   /*
    * Share product
    */
   const handleShare = async () => {
-    const productSlug =
-      stone?.slug ||
-      stone?.code ||
-      productIdentifier
+    const productSlug = stone?.slug || stone?.code || productIdentifier;
 
     const url =
-      typeof window !== 'undefined' &&
-      productSlug
+      typeof window !== "undefined" && productSlug
         ? `${window.location.origin}/p/${encodeURIComponent(
-            String(productSlug)
+            String(productSlug),
           )}`
-        : ''
+        : "";
 
     if (!url) {
-      toast.error(
-        'لینک محصول در دسترس نیست'
-      )
-      return
+      toast.error("لینک محصول در دسترس نیست");
+      return;
     }
 
     /*
      * Native browser share
      */
     if (
-      typeof navigator !== 'undefined' &&
-      typeof navigator.share ===
-        'function'
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function"
     ) {
       try {
         await navigator.share({
-          title:
-            stone?.name ||
-            'محصول',
+          title: stone?.name || "محصول",
 
           text:
             stone?.descriptionEn ||
             stone?.description ||
             stone?.name ||
-            'مشاهده مشخصات محصول',
+            "مشاهده مشخصات محصول",
 
           url,
-        })
+        });
 
-        return
+        return;
       } catch (error) {
         /*
          * User cancelled sharing.
          */
-        if (
-          error instanceof DOMException &&
-          error.name ===
-            'AbortError'
-        ) {
-          return
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
         }
 
-        console.error(
-          'Product share failed:',
-          error
-        )
+        console.error("Product share failed:", error);
       }
     }
 
     /*
      * Clipboard API
      */
-    if (
-      typeof navigator !== 'undefined' &&
-      navigator.clipboard
-    ) {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
       try {
-        await navigator.clipboard.writeText(
-          url
-        )
+        await navigator.clipboard.writeText(url);
 
-        toast.success(
-          'لینک محصول کپی شد!'
-        )
+        toast.success("لینک محصول کپی شد!");
 
-        return
+        return;
       } catch (error) {
-        console.error(
-          'Clipboard copy failed:',
-          error
-        )
+        console.error("Clipboard copy failed:", error);
       }
     }
 
@@ -286,73 +241,50 @@ export function ProductDetailPage({
      * Legacy fallback
      */
     try {
-      const textarea =
-        document.createElement(
-          'textarea'
-        )
+      const textarea = document.createElement("textarea");
 
-      textarea.value = url
+      textarea.value = url;
 
-      textarea.setAttribute(
-        'readonly',
-        ''
-      )
+      textarea.setAttribute("readonly", "");
 
-      textarea.style.position =
-        'fixed'
+      textarea.style.position = "fixed";
 
-      textarea.style.opacity = '0'
+      textarea.style.opacity = "0";
 
-      document.body.appendChild(
-        textarea
-      )
+      document.body.appendChild(textarea);
 
-      textarea.select()
+      textarea.select();
 
-      const copied =
-        document.execCommand('copy')
+      const copied = document.execCommand("copy");
 
-      document.body.removeChild(
-        textarea
-      )
+      document.body.removeChild(textarea);
 
       if (copied) {
-        toast.success(
-          'لینک محصول کپی شد!'
-        )
+        toast.success("لینک محصول کپی شد!");
       } else {
-        toast.error(
-          'کپی لینک انجام نشد'
-        )
+        toast.error("کپی لینک انجام نشد");
       }
     } catch (error) {
-      console.error(
-        'Fallback clipboard failed:',
-        error
-      )
+      console.error("Fallback clipboard failed:", error);
 
-      toast.error(
-        'امکان اشتراک‌گذاری محصول وجود ندارد'
-      )
+      toast.error("امکان اشتراک‌گذاری محصول وجود ندارد");
     }
-  }
+  };
 
   /*
    * Download product PDF
    */
   const handleDownloadPDF = () => {
     if (!stone?.id) {
-      return
+      return;
     }
 
     window.open(
-      `/api/products/${encodeURIComponent(
-        String(stone.id)
-      )}/pdf`,
-      '_blank',
-      'noopener,noreferrer'
-    )
-  }
+      `/api/products/${encodeURIComponent(String(stone.id))}/pdf`,
+      "_blank",
+      "noopener,noreferrer",
+    );
+  };
 
   /*
    * Loading state
@@ -370,7 +302,7 @@ export function ProductDetailPage({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   /*
@@ -379,160 +311,116 @@ export function ProductDetailPage({
   if (!stone) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold mb-4">
-          محصول یافت نشد
-        </h2>
+        <h2 className="text-2xl font-bold mb-4">محصول یافت نشد</h2>
 
-        <Button
-          onClick={() =>
-            navigate('catalog')
-          }
-        >
-          بازگشت به کاتالوگ
-        </Button>
+        <Button onClick={() => navigate("catalog")}>بازگشت به کاتالوگ</Button>
       </div>
-    )
+    );
   }
 
-  const isFav =
-    favorites.includes(
-      String(stone.id)
-    )
+  const isFav = favorites.includes(String(stone.id));
 
-  const isCompared =
-    compareList.includes(
-      String(stone.id)
-    )
+  const isCompared = compareList.includes(String(stone.id));
 
-  const images =
-    stone.images || []
+  const images = stone.images || [];
 
-  const prices =
-    stone.prices || []
+  const prices = stone.prices || [];
 
-  const inv =
-    getInventory(stone)
+  const inv = getInventory(stone);
 
   const specs = [
     {
       icon: Layers,
-      label: t(
-        'product.thickness'
-      ),
-      value: `${stone.thickness} mm`,
+      label: t("product.thickness"),
+      value: specValue(stone.thickness, "mm"),
     },
 
     {
       icon: Ruler,
-      label: t(
-        'product.dimensions'
-      ),
-      value: `${stone.width} × ${stone.length} cm`,
+      label: t("product.dimensions"),
+      value: dimensionsLabel(stone.width, stone.length),
     },
 
     {
       icon: Weight,
-      label: t(
-        'product.weight'
-      ),
-      value: `${stone.weight} kg/m²`,
+      label: t("product.weight"),
+      value: specValue(stone.weight, "kg/m²"),
     },
 
     {
       icon: Droplets,
-      label: t(
-        'product.waterAbsorption'
-      ),
-      value: `${stone.waterAbsorption} %`,
+      label: t("product.waterAbsorption"),
+      value: specValue(stone.waterAbsorption, "%"),
     },
 
     {
       icon: Mountain,
-      label: t(
-        'product.compressive'
-      ),
-      value: `${stone.compressiveStrength} MPa`,
+      label: t("product.compressive"),
+      value: specValue(stone.compressiveStrength, "MPa"),
     },
 
     {
       icon: Activity,
-      label: t(
-        'product.abrasion'
-      ),
-      value:
-        stone.abrasionResistance,
+      label: t("product.abrasion"),
+      value: specValue(stone.abrasionResistance),
     },
-  ]
+  ];
 
   const priceTypes = [
     {
-      type: 'PER_SQM',
-      label: t(
-        'price.perSqm'
-      ),
+      type: "PER_SQM",
+      label: t("price.perSqm"),
     },
 
     {
-      type: 'PER_SLAB',
-      label: t(
-        'price.perSlab'
-      ),
+      type: "PER_SLAB",
+      label: t("price.perSlab"),
     },
 
     {
-      type: 'DOMESTIC',
-      label: t(
-        'price.domestic'
-      ),
+      type: "DOMESTIC",
+      label: t("price.domestic"),
     },
 
     {
-      type: 'WHOLESALE',
-      label: t(
-        'price.wholesale'
-      ),
+      type: "WHOLESALE",
+      label: t("price.wholesale"),
     },
 
     {
-      type: 'PARTNER',
-      label: t(
-        'price.partner'
-      ),
+      type: "PARTNER",
+      label: t("price.partner"),
     },
 
     {
-      type: 'PROJECT',
-      label: t(
-        'price.project'
-      ),
+      type: "PROJECT",
+      label: t("price.project"),
     },
 
     {
-      type: 'EXPORT',
-      label: t(
-        'price.export'
-      ),
+      type: "EXPORT",
+      label: t("price.export"),
     },
-  ]
+  ];
 
-  const images360 =
-    images.filter(
-      (img: any) =>
-        img.type === '360'
-    )
+  const visiblePriceTypes = priceTypes.filter(
+    (item) =>
+      item.type === "PER_SQM" ||
+      (prices.some((p: any) => p.type === item.type && isUsablePrice(p)) &&
+        (PUBLIC_PRICE_TYPES.includes(item.type) ||
+          ["ADMIN", "SALES_MANAGER", "OPERATOR"].includes(user?.role || ""))),
+  );
+
+  const images360 = images.filter((img: any) => img.type === "360");
 
   return (
     <div className="bg-background">
-
       {/* Breadcrumb */}
       <div className="border-b bg-muted/30">
         <div className="container mx-auto px-4 py-3">
           <nav className="flex items-center gap-2 text-sm text-muted-foreground">
-
             <button
-              onClick={() =>
-                navigate('home')
-              }
+              onClick={() => navigate("home")}
               className="hover:text-primary"
             >
               خانه
@@ -541,9 +429,7 @@ export function ProductDetailPage({
             <ChevronLeft className="w-3 h-3" />
 
             <button
-              onClick={() =>
-                navigate('catalog')
-              }
+              onClick={() => navigate("catalog")}
               className="hover:text-primary"
             >
               کاتالوگ
@@ -551,73 +437,40 @@ export function ProductDetailPage({
 
             <ChevronLeft className="w-3 h-3" />
 
-            {stone.category
-              ?.parent && (
+            {stone.category?.parent && (
               <>
                 <button
                   onClick={() =>
-                    navigate(
-                      'catalog',
-                      {
-                        category:
-                          stone
-                            .category
-                            .parent
-                            .slug,
-                      }
-                    )
+                    navigate("catalog", {
+                      category: stone.category.parent.slug,
+                    })
                   }
                   className="hover:text-primary"
                 >
-                  {
-                    stone
-                      .category
-                      .parent
-                      .name
-                  }
+                  {stone.category.parent.name}
                 </button>
 
                 <ChevronLeft className="w-3 h-3" />
               </>
             )}
 
-            <span className="text-foreground font-medium">
-              {stone.name}
-            </span>
-
+            <span className="text-foreground font-medium">{stone.name}</span>
           </nav>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8">
-
         <div className="grid lg:grid-cols-2 gap-8">
-
           {/* Image gallery */}
           <div className="space-y-4">
-
             <div
               className="relative aspect-square rounded-2xl overflow-hidden bg-muted cursor-zoom-in group"
-              onClick={() =>
-                setZoomOpen(true)
-              }
+              onClick={() => setZoomOpen(true)}
             >
-
-              {images[
-                activeImage
-              ] && (
+              {images[activeImage] && (
                 <img
-                  src={
-                    images[
-                      activeImage
-                    ].url
-                  }
-                  alt={
-                    images[
-                      activeImage
-                    ].alt ||
-                    stone.name
-                  }
+                  src={images[activeImage].url}
+                  alt={images[activeImage].alt || stone.name}
                   className="w-full h-full object-cover"
                 />
               )}
@@ -630,19 +483,13 @@ export function ProductDetailPage({
 
               {/* Badges */}
               <div className="absolute top-4 right-4 flex flex-col gap-2">
-
                 {stone.isFeatured && (
-                  <Badge className="bg-gold text-brand-900">
-                    ★ ویژه
-                  </Badge>
+                  <Badge className="bg-gold text-brand-900">★ ویژه</Badge>
                 )}
 
                 {stone.isExportGrade && (
-                  <Badge className="bg-blue-700 text-white">
-                    صادراتی
-                  </Badge>
+                  <Badge className="bg-blue-700 text-white">صادراتی</Badge>
                 )}
-
               </div>
 
               {/* Navigation arrows */}
@@ -651,15 +498,11 @@ export function ProductDetailPage({
                   <button
                     type="button"
                     onClick={(e) => {
-                      e.stopPropagation()
+                      e.stopPropagation();
 
                       setActiveImage(
-                        (i) =>
-                          (i -
-                            1 +
-                            images.length) %
-                          images.length
-                      )
+                        (i) => (i - 1 + images.length) % images.length,
+                      );
                     }}
                     className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full glass-strong hover:bg-gold hover:text-brand-900 transition-all flex items-center justify-center"
                   >
@@ -669,13 +512,9 @@ export function ProductDetailPage({
                   <button
                     type="button"
                     onClick={(e) => {
-                      e.stopPropagation()
+                      e.stopPropagation();
 
-                      setActiveImage(
-                        (i) =>
-                          (i + 1) %
-                          images.length
-                      )
+                      setActiveImage((i) => (i + 1) % images.length);
                     }}
                     className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full glass-strong hover:bg-gold hover:text-brand-900 transition-all flex items-center justify-center"
                   >
@@ -686,68 +525,50 @@ export function ProductDetailPage({
 
               {/* Fullscreen */}
               <button
+                aria-label="نمایش تمام صفحه تصویر"
                 type="button"
                 onClick={(e) => {
-                  e.stopPropagation()
-                  setFullscreenOpen(true)
+                  e.stopPropagation();
+                  setFullscreenOpen(true);
                 }}
                 className="absolute bottom-4 left-4 w-10 h-10 rounded-full glass-strong hover:bg-gold hover:text-brand-900 transition-all flex items-center justify-center"
               >
                 <Maximize2 className="w-4 h-4" />
               </button>
-
             </div>
 
             {/* Thumbnails */}
             {images.length > 1 && (
               <div className="grid grid-cols-5 gap-2">
-                {images.map(
-                  (
-                    img: any,
-                    i: number
-                  ) => (
-                    <button
-                      type="button"
-                      key={img.id}
-                      onClick={() =>
-                        setActiveImage(i)
-                      }
-                      className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                        activeImage === i
-                          ? 'border-primary'
-                          : 'border-transparent hover:border-muted'
-                      }`}
-                    >
-                      <img
-                        src={img.url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  )
-                )}
+                {images.map((img: any, i: number) => (
+                  <button
+                    type="button"
+                    key={img.id}
+                    onClick={() => setActiveImage(i)}
+                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                      activeImage === i
+                        ? "border-primary"
+                        : "border-transparent hover:border-muted"
+                    }`}
+                  >
+                    <img
+                      src={img.url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             )}
-
           </div>
 
           {/* Info */}
           <div className="space-y-6">
-
             <div>
-
               <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <Badge variant="outline">{stone.code}</Badge>
 
-                <Badge variant="outline">
-                  {stone.code}
-                </Badge>
-
-                <Badge variant="outline">
-                  {
-                    stone.category
-                      ?.name
-                  }
-                </Badge>
+                <Badge variant="outline">{stone.category?.name}</Badge>
 
                 {stone.rating > 0 && (
                   <Badge className="bg-gold text-brand-900">
@@ -755,7 +576,6 @@ export function ProductDetailPage({
                     {stone.rating}
                   </Badge>
                 )}
-
               </div>
 
               <h1 className="text-3xl md:text-4xl font-black mb-2">
@@ -763,193 +583,121 @@ export function ProductDetailPage({
               </h1>
 
               {stone.nameEn && (
-                <p
-                  className="text-lg text-muted-foreground"
-                  dir="ltr"
-                >
+                <p className="text-lg text-muted-foreground" dir="ltr">
                   {stone.nameEn}
                 </p>
               )}
-
             </div>
 
             {/* Quick info */}
             <div className="grid grid-cols-2 gap-3">
-
               <div className="flex items-center gap-2 text-sm">
                 <span
                   className="w-3 h-3 rounded-full border"
                   style={{
-                    background:
-                      stone.color,
+                    background: stone.color,
                   }}
                 />
 
-                <span className="text-muted-foreground">
-                  رنگ:
-                </span>
+                <span className="text-muted-foreground">رنگ:</span>
 
-                <span className="font-medium">
-                  {stone.color}
-                </span>
+                <span className="font-medium">{stone.color}</span>
               </div>
 
               <div className="flex items-center gap-2 text-sm">
                 <Factory className="w-4 h-4 text-muted-foreground" />
 
-                <span className="text-muted-foreground">
-                  معدن:
-                </span>
+                <span className="text-muted-foreground">معدن:</span>
 
-                <span className="font-medium">
-                  {stone.quarry}
-                </span>
+                <span className="font-medium">{stone.quarry}</span>
               </div>
 
               <div className="flex items-center gap-2 text-sm">
                 <Layers className="w-4 h-4 text-muted-foreground" />
 
-                <span className="text-muted-foreground">
-                  پرداخت:
-                </span>
+                <span className="text-muted-foreground">پرداخت:</span>
 
-                <span className="font-medium">
-                  {
-                    stone.surfaceFinish
-                  }
-                </span>
+                <span className="font-medium">{stone.surfaceFinish}</span>
               </div>
 
               <div className="flex items-center gap-2 text-sm">
                 <Globe2 className="w-4 h-4 text-muted-foreground" />
 
-                <span className="text-muted-foreground">
-                  صادرات:
-                </span>
+                <span className="text-muted-foreground">صادرات:</span>
 
-                <span className="font-medium">
-                  {
-                    stone.exportCountries
-                  }
-                </span>
+                <span className="font-medium">{stone.exportCountries}</span>
               </div>
-
             </div>
 
             {/* Price section */}
             <Card className="p-5 bg-gradient-to-br from-accent/50 to-background">
-
               <div className="flex items-center justify-between mb-3">
-
                 <h3 className="font-bold flex items-center gap-2">
                   <FileText className="w-5 h-5 text-primary" />
-                  {t('product.prices')}
+                  {t("product.prices")}
                 </h3>
 
-                <Badge
-                  variant="outline"
-                  className="text-xs"
-                >
-                  به‌روز:{' '}
-                  {new Date(
-                    stone.updatedAt
-                  ).toLocaleDateString(
-                    'fa-IR'
-                  )}
+                <Badge variant="outline" className="text-xs">
+                  به‌روز:{" "}
+                  {new Date(stone.updatedAt).toLocaleDateString("fa-IR")}
                 </Badge>
-
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {visiblePriceTypes.map((pt) => {
+                  const price = selectDisplayPrice(prices, currency, pt.type);
 
-                {priceTypes.map(
-                  (pt) => {
-                    const price =
-                      prices.find(
-                        (p: any) =>
-                          p.type ===
-                            pt.type &&
-                          (
-                            pt.type ===
-                            'EXPORT'
-                              ? p.currency !==
-                                'IRR'
-                              : p.currency ===
-                                'IRR'
-                          )
-                      )
-
-                    if (!price) {
-                      return null
-                    }
-
-                    return (
-                      <div
-                        key={pt.type}
-                        className="bg-background rounded-lg p-3 border"
-                      >
-                        <div className="text-xs text-muted-foreground">
-                          {pt.label}
-                        </div>
-
-                        <div className="font-bold text-primary">
-                          {pt.type ===
-                          'EXPORT'
-                            ? formatPrice(
-                                price.amount,
-                                price.currency as any
-                              )
-                            : formatPrice(
-                                price.amount,
-                                currency
-                              )}
-                        </div>
-
-                        {price.minQuantity && (
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            حداقل:{' '}
-                            {
-                              price.minQuantity
-                            }
-                          </div>
-                        )}
+                  return (
+                    <div
+                      key={pt.type}
+                      className="bg-background rounded-lg p-3 border"
+                    >
+                      <div className="text-xs text-muted-foreground">
+                        {pt.label}
                       </div>
-                    )
-                  }
-                )}
 
+                      <div className="font-bold text-primary">
+                        {priceLabel(price)}
+                      </div>
+
+                      {price?.minQuantity && (
+                        <div className="text-[10px] text-muted-foreground mt-1">
+                          حداقل: {price?.minQuantity}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </Card>
 
             {/* Inventory */}
-            {inv && (
+            {inventorySummary(stone).available == null && (
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground leading-7">
+                موجودی این محصول نیاز به تأیید دارد. برای متراژ و زمان تحویل،
+                استعلام ثبت کنید.
+              </div>
+            )}
+            {inv && inventorySummary(stone).available != null && (
               <Card className="p-5">
-
                 <h3 className="font-bold mb-3 flex items-center gap-2">
                   <Layers className="w-5 h-5 text-primary" />
-                  {t('product.inventory')}
+                  {t("product.inventory")}
                 </h3>
 
                 <div className="grid grid-cols-4 gap-3 text-center">
-
                   <div>
                     <div className="text-2xl font-black text-primary">
                       {inv.slabCount}
                     </div>
 
-                    <div className="text-xs text-muted-foreground">
-                      اسلب
-                    </div>
+                    <div className="text-xs text-muted-foreground">اسلب</div>
                   </div>
 
                   <div>
-                    <div className="text-2xl font-black">
-                      {inv.totalSqm}
-                    </div>
+                    <div className="text-2xl font-black">{inv.totalSqm}</div>
 
-                    <div className="text-xs text-muted-foreground">
-                      m² کل
-                    </div>
+                    <div className="text-xs text-muted-foreground">m² کل</div>
                   </div>
 
                   <div>
@@ -964,42 +712,28 @@ export function ProductDetailPage({
 
                   <div>
                     <div className="text-2xl font-black text-amber-600">
-                      {
-                        inv.inProductionSqm
-                      }
+                      {inv.inProductionSqm}
                     </div>
 
                     <div className="text-xs text-muted-foreground">
                       m² تولید
                     </div>
                   </div>
-
                 </div>
 
                 <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    📍{' '}
-                    {
-                      inv.warehouseName
-                    }
-                  </span>
+                  <span>📍 {inv.warehouseName}</span>
 
-                  <span>
-                    {inv.location}
-                  </span>
+                  <span>{inv.location}</span>
                 </div>
-
               </Card>
             )}
 
             {/* Action buttons */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
               <Button
                 size="lg"
-                onClick={() =>
-                  setInquiryOpen(true)
-                }
+                onClick={() => setInquiryOpen(true)}
                 className="bg-gradient-to-l from-brand-700 to-brand-500 hover:from-brand-800 hover:to-brand-600 text-white"
               >
                 <Send className="w-4 h-4 ml-2" />
@@ -1009,82 +743,43 @@ export function ProductDetailPage({
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() =>
-                  toggleFavorite(
-                    stone.id
-                  )
-                }
-                className={
-                  isFav
-                    ? 'border-red-500 text-red-500'
-                    : ''
-                }
+                onClick={() => toggleFavorite(stone.id)}
+                className={isFav ? "border-red-500 text-red-500" : ""}
               >
                 <Heart
-                  className={`w-4 h-4 ml-2 ${
-                    isFav
-                      ? 'fill-current'
-                      : ''
-                  }`}
+                  className={`w-4 h-4 ml-2 ${isFav ? "fill-current" : ""}`}
                 />
 
-                {isFav
-                  ? 'افزوده شد'
-                  : 'علاقه‌مندی'}
+                {isFav ? "افزوده شد" : "علاقه‌مندی"}
               </Button>
 
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() =>
-                  toggleCompare(
-                    stone.id
-                  )
-                }
-                className={
-                  isCompared
-                    ? 'border-primary bg-primary/10'
-                    : ''
-                }
+                onClick={() => toggleCompare(stone.id)}
+                className={isCompared ? "border-primary bg-primary/10" : ""}
               >
                 {isCompared ? (
                   <Check className="w-4 h-4 ml-2" />
                 ) : (
                   <GitCompare className="w-4 h-4 ml-2" />
                 )}
-
                 مقایسه
               </Button>
 
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={handleShare}
-              >
+              <Button size="lg" variant="outline" onClick={handleShare}>
                 <Share2 className="w-4 h-4 ml-2" />
                 اشتراک
               </Button>
-
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  setQrOpen(true)
-                }
-              >
+              <Button variant="ghost" onClick={() => setQrOpen(true)}>
                 <QrCode className="w-4 h-4 ml-2" />
                 QR Code
               </Button>
 
-              <Button
-                variant="ghost"
-                onClick={
-                  handleDownloadPDF
-                }
-              >
+              <Button variant="ghost" onClick={handleDownloadPDF}>
                 <Download className="w-4 h-4 ml-2" />
                 دانلود PDF
               </Button>
@@ -1092,23 +787,15 @@ export function ProductDetailPage({
               <Button
                 variant="ghost"
                 onClick={() =>
-                  navigate(
-                    'catalog',
-                    {
-                      category:
-                        stone
-                          .category
-                          ?.slug,
-                    }
-                  )
+                  navigate("catalog", {
+                    category: stone.category?.slug,
+                  })
                 }
               >
                 <ArrowLeft className="w-4 h-4 ml-2" />
                 مشابه
               </Button>
-
             </div>
-
           </div>
         </div>
 
@@ -1116,13 +803,9 @@ export function ProductDetailPage({
         {images360.length > 0 && (
           <section className="mt-12">
             <Card className="p-6">
-
               <div className="flex items-center justify-between mb-4">
-
                 <div>
-                  <h2 className="text-xl font-bold">
-                    نمایش 360 درجه
-                  </h2>
+                  <h2 className="text-xl font-bold">نمایش 360 درجه</h2>
 
                   <p className="text-sm text-muted-foreground">
                     برای چرخاندن نما، نوار را جابه‌جا کنید.
@@ -1130,47 +813,28 @@ export function ProductDetailPage({
                 </div>
 
                 <Badge variant="outline">
-                  {frame360 + 1} /{' '}
-                  {images360.length}
+                  {frame360 + 1} / {images360.length}
                 </Badge>
-
               </div>
 
               <div className="rounded-2xl overflow-hidden bg-muted/30">
-
                 <img
-                  src={
-                    images360[
-                      frame360
-                    ]?.url
-                  }
+                  src={images360[frame360]?.url}
                   alt={stone.name}
                   className="w-full max-h-[680px] object-contain select-none"
                   draggable={false}
                 />
-
               </div>
 
               <input
                 className="w-full mt-5"
                 type="range"
                 min={0}
-                max={Math.max(
-                  0,
-                  images360.length -
-                    1
-                )}
+                max={Math.max(0, images360.length - 1)}
                 value={frame360}
-                onChange={(e) =>
-                  setFrame360(
-                    Number(
-                      e.target.value
-                    )
-                  )
-                }
+                onChange={(e) => setFrame360(Number(e.target.value))}
                 aria-label="360 degree frame"
               />
-
             </Card>
           </section>
         )}
@@ -1179,167 +843,101 @@ export function ProductDetailPage({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html:
-              JSON.stringify({
-                '@context':
-                  'https://schema.org',
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
 
-                '@type':
-                  'Product',
+              "@type": "Product",
 
-                name:
-                  stone.name,
+              name: stone.name,
 
-                sku:
-                  stone.code,
+              sku: stone.code,
 
-                description:
-                  stone.description ||
-                  undefined,
+              description: stone.description || undefined,
 
-                image:
-                  images.map(
-                    (img: any) =>
-                      img.url
-                  ),
+              image: images.map((img: any) => img.url),
 
-                category:
-                  stone.category
-                    ?.name,
+              category: stone.category?.name,
 
-                brand:
-                  siteBrandForSeo(
-                    stone
-                  ),
+              brand: siteBrandForSeo(stone),
 
-                offers:
-                  prices.map(
-                    (p: any) => ({
-                      '@type':
-                        'Offer',
+              offers: prices
+                .filter(
+                  (price: any) =>
+                    PUBLIC_PRICE_TYPES.includes(price.type) &&
+                    isUsablePrice(price),
+                )
+                .map((p: any) => ({
+                  "@type": "Offer",
 
-                      priceCurrency:
-                        p.currency,
+                  priceCurrency: p.currency,
 
-                      price:
-                        p.amount,
+                  price: p.amount,
 
-                      availability:
-                        stone.status ===
-                        'AVAILABLE'
-                          ? 'https://schema.org/InStock'
-                          : 'https://schema.org/OutOfStock',
-                    })
-                  ),
-              }),
+                  availability:
+                    inventorySummary(stone).tone === "available"
+                      ? "https://schema.org/InStock"
+                      : "https://schema.org/OutOfStock",
+                })),
+            }).replace(/</g, "\\u003c"),
           }}
         />
 
         {/* Tabs */}
         <div className="mt-12">
-
-          <Tabs
-            value={activeTab}
-            onValueChange={
-              setActiveTab
-            }
-          >
-
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full justify-start overflow-x-auto h-auto p-1">
+              <TabsTrigger value="specs">مشخصات فنی</TabsTrigger>
 
-              <TabsTrigger value="specs">
-                مشخصات فنی
-              </TabsTrigger>
+              <TabsTrigger value="description">توضیحات</TabsTrigger>
 
-              <TabsTrigger value="description">
-                توضیحات
-              </TabsTrigger>
+              <TabsTrigger value="application">کاربرد</TabsTrigger>
 
-              <TabsTrigger value="application">
-                کاربرد
-              </TabsTrigger>
-
-              <TabsTrigger value="related">
-                {t(
-                  'product.related'
-                )}
-              </TabsTrigger>
-
+              <TabsTrigger value="related">{t("product.related")}</TabsTrigger>
             </TabsList>
 
             {/* Specs */}
-            <TabsContent
-              value="specs"
-              className="mt-6"
-            >
+            <TabsContent value="specs" className="mt-6">
               <Card className="p-6">
-
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-
-                  {specs.map(
-                    (
-                      spec,
-                      i
-                    ) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
-                      >
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-
-                          <spec.icon className="w-5 h-5 text-primary" />
-
-                        </div>
-
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            {
-                              spec.label
-                            }
-                          </div>
-
-                          <div className="font-bold text-sm">
-                            {
-                              spec.value
-                            }
-                          </div>
-                        </div>
-
+                  {specs.map((spec, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <spec.icon className="w-5 h-5 text-primary" />
                       </div>
-                    )
-                  )}
+
+                      <div>
+                        <div className="text-xs text-muted-foreground">
+                          {spec.label}
+                        </div>
+
+                        <div className="font-bold text-sm">{spec.value}</div>
+                      </div>
+                    </div>
+                  ))}
 
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
-
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <MapPin className="w-5 h-5 text-primary" />
                     </div>
 
                     <div>
-                      <div className="text-xs text-muted-foreground">
-                        چگالی
-                      </div>
+                      <div className="text-xs text-muted-foreground">چگالی</div>
 
                       <div className="font-bold text-sm">
-                        {stone.density}{' '}
-                        g/cm³
+                        {specValue(stone.density, "g/cm³")}
                       </div>
                     </div>
-
                   </div>
-
                 </div>
-
               </Card>
             </TabsContent>
 
             {/* Description */}
-            <TabsContent
-              value="description"
-              className="mt-6"
-            >
+            <TabsContent value="description" className="mt-6">
               <Card className="p-6">
-
                 <p className="leading-relaxed text-foreground/90">
                   {stone.description}
                 </p>
@@ -1349,127 +947,77 @@ export function ProductDetailPage({
                     className="mt-4 leading-relaxed text-muted-foreground"
                     dir="ltr"
                   >
-                    {
-                      stone.descriptionEn
-                    }
+                    {stone.descriptionEn}
                   </p>
                 )}
 
                 {stone.features && (
                   <div className="mt-6 pt-6 border-t">
-
-                    <h4 className="font-bold mb-3">
-                      ویژگی‌های ویژه
-                    </h4>
+                    <h4 className="font-bold mb-3">ویژگی‌های ویژه</h4>
 
                     <p className="text-sm text-muted-foreground">
                       {stone.features}
                     </p>
-
                   </div>
                 )}
-
               </Card>
             </TabsContent>
 
             {/* Application */}
-            <TabsContent
-              value="application"
-              className="mt-6"
-            >
+            <TabsContent value="application" className="mt-6">
               <Card className="p-6 space-y-4">
-
                 <div>
                   <h4 className="font-bold mb-2 flex items-center gap-2">
                     <Layers className="w-5 h-5 text-primary" />
-                    {t(
-                      'product.application'
-                    )}
+                    {t("product.application")}
                   </h4>
 
-                  <p className="text-muted-foreground">
-                    {stone.application}
-                  </p>
+                  <p className="text-muted-foreground">{stone.application}</p>
                 </div>
 
                 <div className="pt-4 border-t">
                   <h4 className="font-bold mb-2 flex items-center gap-2">
                     <Star className="w-5 h-5 text-primary" />
-                    {t(
-                      'product.suitableFor'
-                    )}
+                    {t("product.suitableFor")}
                   </h4>
 
-                  <p className="text-muted-foreground">
-                    {stone.suitableFor}
-                  </p>
+                  <p className="text-muted-foreground">{stone.suitableFor}</p>
                 </div>
 
                 <div className="pt-4 border-t">
-
                   <h4 className="font-bold mb-2 flex items-center gap-2">
                     <Globe2 className="w-5 h-5 text-primary" />
-                    {t(
-                      'product.exportCountries'
-                    )}
+                    {t("product.exportCountries")}
                   </h4>
 
                   <div className="flex flex-wrap gap-2">
-
                     {stone.exportCountries
-                      ?.split('،')
-                      .map(
-                        (
-                          c: string,
-                          i: number
-                        ) => (
-                          <Badge
-                            key={i}
-                            variant="secondary"
-                          >
-                            {c.trim()}
-                          </Badge>
-                        )
-                      )}
-
+                      ?.split("،")
+                      .map((c: string, i: number) => (
+                        <Badge key={i} variant="secondary">
+                          {c.trim()}
+                        </Badge>
+                      ))}
                   </div>
-
                 </div>
-
               </Card>
             </TabsContent>
 
             {/* Related */}
-            <TabsContent
-              value="related"
-              className="mt-6"
-            >
-              {stone.related &&
-              stone.related.length >
-                0 ? (
+            <TabsContent value="related" className="mt-6">
+              {stone.related && stone.related.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-
-                  {stone.related.map(
-                    (s: any) => (
-                      <ProductCard
-                        key={s.id}
-                        stone={s}
-                      />
-                    )
-                  )}
-
+                  {stone.related.map((s: any) => (
+                    <ProductCard key={s.id} stone={s} />
+                  ))}
                 </div>
               ) : (
                 <Card className="p-12 text-center">
-                  <p className="text-muted-foreground">
-                    محصول مرتبط یافت نشد
-                  </p>
+                  <p className="text-muted-foreground">محصول مرتبط یافت نشد</p>
                 </Card>
               )}
             </TabsContent>
-
           </Tabs>
-
         </div>
       </div>
 
@@ -1477,100 +1025,59 @@ export function ProductDetailPage({
       {zoomOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4"
-          onClick={() =>
-            setZoomOpen(false)
-          }
+          onClick={() => setZoomOpen(false)}
         >
-
           <button
             type="button"
+            aria-label="بستن تصویر"
             className="absolute top-4 right-4 w-12 h-12 rounded-full glass-strong hover:bg-red-500 hover:text-white transition-all flex items-center justify-center"
-            onClick={() =>
-              setZoomOpen(false)
-            }
+            onClick={() => setZoomOpen(false)}
           >
             <X className="w-6 h-6" />
           </button>
 
-          {images[
-            activeImage
-          ] && (
+          {images[activeImage] && (
             <img
-              src={
-                images[
-                  activeImage
-                ].url
-              }
-              alt={
-                images[
-                  activeImage
-                ].alt ||
-                stone.name
-              }
+              src={images[activeImage].url}
+              alt={images[activeImage].alt || stone.name}
               className="max-w-full max-h-full object-contain"
-              onClick={(e) =>
-                e.stopPropagation()
-              }
+              onClick={(e) => e.stopPropagation()}
             />
           )}
-
         </div>
       )}
 
       {/* Fullscreen gallery */}
       {fullscreenOpen && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
-
           <button
             type="button"
+            aria-label="بستن تصویر"
             className="absolute top-4 right-4 w-12 h-12 rounded-full glass-strong hover:bg-red-500 hover:text-white transition-all flex items-center justify-center"
-            onClick={() =>
-              setFullscreenOpen(
-                false
-              )
-            }
+            onClick={() => setFullscreenOpen(false)}
           >
             <X className="w-6 h-6" />
           </button>
 
           <div
             className="relative w-full max-w-5xl"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
-
-            {images[
-              activeImage
-            ] && (
+            {images[activeImage] && (
               <img
-                src={
-                  images[
-                    activeImage
-                  ].url
-                }
-                alt={
-                  images[
-                    activeImage
-                  ].alt ||
-                  stone.name
-                }
+                src={images[activeImage].url}
+                alt={images[activeImage].alt || stone.name}
                 className="w-full max-h-[85vh] object-contain"
               />
             )}
 
-            {images.length >
-              1 && (
+            {images.length > 1 && (
               <>
                 <button
                   type="button"
                   onClick={() =>
                     setActiveImage(
-                      (i) =>
-                        (i -
-                          1 +
-                          images.length) %
-                        images.length
+                      (i) => (i - 1 + images.length) % images.length,
                     )
                   }
                   className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full glass-strong hover:bg-gold hover:text-brand-900 flex items-center justify-center"
@@ -1580,28 +1087,18 @@ export function ProductDetailPage({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setActiveImage(
-                      (i) =>
-                        (i + 1) %
-                        images.length
-                    )
-                  }
+                  onClick={() => setActiveImage((i) => (i + 1) % images.length)}
                   className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full glass-strong hover:bg-gold hover:text-brand-900 flex items-center justify-center"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
 
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass-strong px-4 py-2 rounded-full text-white text-sm">
-                  {activeImage +
-                    1}{' '}
-                  / {images.length}
+                  {activeImage + 1} / {images.length}
                 </div>
               </>
             )}
-
           </div>
-
         </div>
       )}
 
@@ -1609,50 +1106,35 @@ export function ProductDetailPage({
       {qrOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() =>
-            setQrOpen(false)
-          }
+          onClick={() => setQrOpen(false)}
         >
-
           <Card
             className="max-w-md w-full p-6"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
-
             <div className="flex items-center justify-between mb-4">
-
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <QrCode className="w-5 h-5" />
                 QR Code
               </h3>
 
               <button
+                aria-label="بستن کد QR"
                 type="button"
-                onClick={() =>
-                  setQrOpen(false)
-                }
+                onClick={() => setQrOpen(false)}
               >
                 <X className="w-5 h-5" />
               </button>
-
             </div>
 
             <div className="text-center">
-
               <img
                 src={`/api/qr?text=${encodeURIComponent(
-                  typeof window !==
-                    'undefined'
+                  typeof window !== "undefined"
                     ? `${window.location.origin}/p/${encodeURIComponent(
-                        String(
-                          stone.slug ||
-                            stone.code ||
-                            stone.id
-                        )
+                        String(stone.slug || stone.code || stone.id),
                       )}`
-                    : ''
+                    : "",
                 )}&size=300&format=svg`}
                 alt="QR Code"
                 className="mx-auto w-64 h-64"
@@ -1663,32 +1145,20 @@ export function ProductDetailPage({
               </p>
 
               <div className="mt-4 flex gap-2">
-
                 <Button
                   variant="outline"
                   className="flex-1"
                   onClick={async () => {
-                    const link =
-                      `${window.location.origin}/p/${encodeURIComponent(
-                        String(
-                          stone.slug ||
-                            stone.code ||
-                            stone.id
-                        )
-                      )}`
+                    const link = `${window.location.origin}/p/${encodeURIComponent(
+                      String(stone.slug || stone.code || stone.id),
+                    )}`;
 
                     try {
-                      await navigator.clipboard.writeText(
-                        link
-                      )
+                      await navigator.clipboard.writeText(link);
 
-                      toast.success(
-                        'لینک کپی شد'
-                      )
+                      toast.success("لینک کپی شد");
                     } catch {
-                      toast.error(
-                        'کپی لینک انجام نشد'
-                      )
+                      toast.error("کپی لینک انجام نشد");
                     }
                   }}
                 >
@@ -1698,16 +1168,11 @@ export function ProductDetailPage({
 
                 <a
                   href={`/api/qr?text=${encodeURIComponent(
-                    typeof window !==
-                      'undefined'
+                    typeof window !== "undefined"
                       ? `${window.location.origin}/p/${encodeURIComponent(
-                          String(
-                            stone.slug ||
-                              stone.code ||
-                              stone.id
-                          )
+                          String(stone.slug || stone.code || stone.id),
                         )}`
-                      : ''
+                      : "",
                   )}&size=300&format=svg`}
                   download={`qr-${stone.code}.svg`}
                   className="flex-1"
@@ -1717,426 +1182,198 @@ export function ProductDetailPage({
                     دانلود SVG
                   </Button>
                 </a>
-
               </div>
-
             </div>
-
           </Card>
-
         </div>
       )}
 
       {/* Inquiry Modal */}
       {inquiryOpen && (
-        <InquiryModal
-          stone={stone}
-          onClose={() =>
-            setInquiryOpen(false)
-          }
-        />
+        <InquiryModal stone={stone} onClose={() => setInquiryOpen(false)} />
       )}
-
     </div>
-  )
+  );
 }
 
-function InquiryModal({
-  stone,
-  onClose,
-}: any) {
-  const [form, setForm] =
-    useState({
-      customerName: '',
-      customerPhone: '',
-      customerEmail: '',
-      customerCountry: '',
-      customerCity: '',
-      requiredSqm: '',
-      message: '',
-    })
-
-  const [submitting, setSubmitting] =
-    useState(false)
-
-  const [submitted, setSubmitted] =
-    useState(false)
-
-  const handleSubmit =
-    async (
-      e: React.FormEvent
-    ) => {
-      e.preventDefault()
-
-      if (!stone?.id) {
-        toast.error(
-          'شناسه محصول نامعتبر است'
-        )
-        return
-      }
-
-      setSubmitting(true)
-
-      try {
-        const res =
-          await fetch(
-            '/api/inquiries',
-            {
-              method: 'POST',
-
-              headers: {
-                'Content-Type':
-                  'application/json',
-              },
-
-              body: JSON.stringify({
-                ...form,
-
-                stoneId:
-                  stone.id,
-
-                inquiryType:
-                  'ORDER',
-              }),
-            }
-          )
-
-        const data =
-          await res.json()
-
-        if (
-          res.ok &&
-          data.success
-        ) {
-          setSubmitted(true)
-
-          toast.success(
-            'درخواست شما با موفقیت ثبت شد'
-          )
-        } else {
-          toast.error(
-            data.error ||
-              'خطا در ثبت درخواست'
-          )
-        }
-      } catch {
-        toast.error(
-          'خطا در ارتباط با سرور'
-        )
-      } finally {
-        setSubmitting(
-          false
-        )
-      }
+function InquiryModal({ stone, onClose }: { stone: any; onClose: () => void }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [receipt, setReceipt] = useState("");
+  const [error, setError] = useState("");
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    setSubmitting(true);
+    setError("");
+    try {
+      const sqm = String(data.get("requiredSqm") || "").trim();
+      const response = await apiFetch("/api/inquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stoneId: stone.id,
+          inquiryType: "ORDER",
+          customerName: data.get("customerName"),
+          customerPhone: normalizePhone(
+            String(data.get("customerPhone") || ""),
+          ),
+          customerEmail: data.get("customerEmail") || "",
+          customerCountry: data.get("customerCountry") || "",
+          customerCity: data.get("customerCity") || "",
+          message: data.get("message") || "",
+          ...(sqm ? { requiredSqm: Number(sqm) } : {}),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success)
+        throw new Error(
+          result.details?.[0]?.message ||
+            result.error ||
+            "ثبت درخواست انجام نشد.",
+        );
+      setReceipt(result.data.id);
+      toast.success("درخواست شما ثبت شد.");
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "اتصال برقرار نشد؛ دوباره تلاش کنید.",
+      );
+    } finally {
+      setSubmitting(false);
     }
-
-  if (submitted) {
-    return (
-      <div
-        className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-        onClick={onClose}
-      >
-
-        <Card
-          className="max-w-md w-full p-8 text-center"
-          onClick={(e) =>
-            e.stopPropagation()
-          }
-        >
-
-          <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <Check className="w-10 h-10 text-green-600" />
-          </div>
-
-          <h3 className="font-bold text-xl mb-2">
-            درخواست شما ثبت شد!
-          </h3>
-
-          <p className="text-muted-foreground mb-6">
-            کارشناسان فروش ما در کمتر از ۲۴ ساعت با شما تماس خواهند گرفت.
-          </p>
-
-          <Button
-            onClick={onClose}
-          >
-            بستن
-          </Button>
-
-        </Card>
-
-      </div>
-    )
   }
-
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto"
-      onClick={onClose}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
-
-      <Card
-        className="max-w-lg w-full p-6 my-8"
-        onClick={(e) =>
-          e.stopPropagation()
-        }
+      <DialogContent
+        className="inquiry-dialog max-h-[90dvh] overflow-y-auto"
+        showCloseButton={false}
+        dir="rtl"
       >
-
-        <div className="flex items-center justify-between mb-4">
-
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <Send className="w-5 h-5 text-primary" />
-            {t_inquiry('title')}
-          </h3>
-
-          <button
-            type="button"
-            onClick={onClose}
-          >
-            <X className="w-5 h-5" />
-          </button>
-
-        </div>
-
-        <div className="bg-muted/30 rounded-lg p-3 mb-4 flex items-center gap-3">
-
-          {stone.images?.[0]?.url ? (
-            <img
-              src={
-                stone
-                  .images[0]
-                  .url
-              }
-              alt={
-                stone.name
-              }
-              className="w-16 h-16 rounded-lg object-cover"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">
-              تصویر
-            </div>
-          )}
-
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="font-bold">
-              {stone.name}
-            </div>
-
-            <div className="text-xs text-muted-foreground">
-              {stone.code} •{' '}
-              {stone.color}
-            </div>
+            <DialogTitle>
+              {receipt ? "درخواست شما ثبت شد" : "استعلام برای پروژه شما"}
+            </DialogTitle>
+            <DialogDescription className="mt-3 leading-7">
+              {receipt
+                ? "تیم فروش درخواست شما را بررسی می‌کند و با شما تماس می‌گیرد."
+                : "مشخصات پروژه را وارد کنید تا قیمت و موجودی مناسب شما بررسی شود."}
+            </DialogDescription>
           </div>
-
+          <DialogClose aria-label="بستن فرم استعلام" className="p-1">
+            <X size={20} />
+          </DialogClose>
         </div>
-
-        <form
-          onSubmit={
-            handleSubmit
-          }
-          className="space-y-3"
-        >
-
-          <div className="grid grid-cols-2 gap-3">
-
-            <div>
-              <Label className="text-sm">
-                نام و نام خانوادگی *
-              </Label>
-
-              <Input
-                required
-                value={
-                  form.customerName
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    customerName:
-                      e.target
-                        .value,
-                  })
-                }
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm">
-                شماره تماس *
-              </Label>
-
-              <Input
-                required
-                value={
-                  form.customerPhone
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    customerPhone:
-                      e.target
-                        .value,
-                  })
-                }
-                dir="ltr"
-              />
-            </div>
-
+        {receipt ? (
+          <div className="space-y-5 py-6 text-center">
+            <Check className="mx-auto text-green-700" size={40} />
+            <p className="text-sm">
+              کد پیگیری: <bdi className="break-all">{receipt}</bdi>
+            </p>
+            <Button onClick={onClose}>بازگشت به محصول</Button>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-
-            <div>
-              <Label className="text-sm">
-                ایمیل
-              </Label>
-
-              <Input
-                type="email"
-                value={
-                  form.customerEmail
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    customerEmail:
-                      e.target
-                        .value,
-                  })
-                }
-                dir="ltr"
-              />
+        ) : (
+          <>
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/20 p-3">
+              {stone.images?.[0]?.url && (
+                <img
+                  src={stone.images[0].url}
+                  alt=""
+                  className="w-14 h-14 rounded object-cover"
+                />
+              )}
+              <div>
+                <strong className="text-sm">{stone.name}</strong>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stone.code}
+                </p>
+              </div>
             </div>
-
-            <div>
-              <Label className="text-sm">
-                متراژ مورد نیاز (m²)
-              </Label>
-
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={
-                  form.requiredSqm
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    requiredSqm:
-                      e.target
-                        .value,
-                  })
-                }
-                dir="ltr"
-              />
-            </div>
-
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-
-            <div>
-              <Label className="text-sm">
-                کشور
-              </Label>
-
-              <Input
-                value={
-                  form.customerCountry
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    customerCountry:
-                      e.target
-                        .value,
-                  })
-                }
-              />
-            </div>
-
-            <div>
-              <Label className="text-sm">
-                شهر
-              </Label>
-
-              <Input
-                value={
-                  form.customerCity
-                }
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    customerCity:
-                      e.target
-                        .value,
-                  })
-                }
-              />
-            </div>
-
-          </div>
-
-          <div>
-            <Label className="text-sm">
-              پیام
-            </Label>
-
-            <Textarea
-              rows={3}
-              value={
-                form.message
-              }
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  message:
-                    e.target
-                      .value,
-                })
-              }
-              placeholder="توضیحات بیشتر در مورد نیاز شما..."
-            />
-          </div>
-
-          <Button
-            type="submit"
-            disabled={
-              submitting
-            }
-            className="w-full"
-            size="lg"
-          >
-            {submitting
-              ? 'در حال ارسال...'
-              : 'ارسال درخواست'}
-
-            {!submitting && (
-              <Send className="w-4 h-4 mr-2" />
-            )}
-          </Button>
-
-        </form>
-
-      </Card>
-
-    </div>
-  )
-}
-
-function t_inquiry(
-  key: string
-) {
-  const map: Record<
-    string,
-    string
-  > = {
-    title:
-      'فرم درخواست خرید',
-  }
-
-  return (
-    map[key] || key
-  )
+            <form onSubmit={submit} className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                {[
+                  ["customerName", "نام و نام خانوادگی", "text", true],
+                  ["customerPhone", "شماره تماس", "tel", true],
+                  ["customerEmail", "ایمیل", "email", false],
+                  [
+                    "requiredSqm",
+                    "متراژ مورد نیاز (متر مربع)",
+                    "number",
+                    false,
+                  ],
+                  ["customerCountry", "کشور", "text", false],
+                  ["customerCity", "شهر", "text", false],
+                ].map(([name, label, type, required]) => (
+                  <div key={String(name)}>
+                    <Label
+                      htmlFor={`inquiry-${name}`}
+                      className="mb-2 block text-xs"
+                    >
+                      {label}
+                      {required ? " *" : ""}
+                    </Label>
+                    <Input
+                      id={`inquiry-${name}`}
+                      name={String(name)}
+                      type={String(type)}
+                      required={Boolean(required)}
+                      autoComplete={
+                        name === "customerName"
+                          ? "name"
+                          : name === "customerPhone"
+                            ? "tel"
+                            : name === "customerEmail"
+                              ? "email"
+                              : undefined
+                      }
+                      min={type === "number" ? "0.01" : undefined}
+                      step={type === "number" ? "0.01" : undefined}
+                      dir={
+                        ["tel", "email", "number"].includes(String(type))
+                          ? "ltr"
+                          : undefined
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <Label htmlFor="inquiry-message" className="mb-2 block text-xs">
+                  توضیحات پروژه
+                </Label>
+                <Textarea
+                  id="inquiry-message"
+                  name="message"
+                  rows={3}
+                  placeholder="محل استفاده، زمان مورد نیاز و جزئیات سفارش..."
+                />
+              </div>
+              {error && (
+                <p role="alert" className="text-xs text-red-700 leading-7">
+                  {error}
+                </p>
+              )}
+              <button
+                className="commercial-button w-full"
+                disabled={submitting}
+                type="submit"
+              >
+                {submitting ? "در حال ثبت درخواست..." : "ثبت درخواست استعلام"}
+                <Send size={16} />
+              </button>
+              <p className="text-[10px] text-muted-foreground leading-6">
+                اطلاعات تماس شما برای پاسخ به همین درخواست استفاده می‌شود.
+              </p>
+            </form>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }

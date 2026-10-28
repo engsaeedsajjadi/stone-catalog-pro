@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
           password: await hashPassword(crypto.randomUUID()),
           name: target,
           phone: channel === 'SMS' ? target : undefined,
-          role: 'OPERATOR',
+          role: 'CUSTOMER',
         },
       })
     }
@@ -88,10 +88,9 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const access = issueAccessToken(user)
     const refresh = issueRefreshToken()
 
-    await db.session.create({
+    const session = await db.session.create({
       data: {
         userId: user.id,
         tokenHash: hashToken(refresh),
@@ -106,7 +105,7 @@ export async function POST(req: NextRequest) {
       data: { id: user.id, email: user.email, name: user.name, role: user.role },
     })
 
-    await setAuthCookies(res, access, refresh)
+    await setAuthCookies(res, issueAccessToken(user, session.id), refresh)
     return res
   } catch (e) {
     return NextResponse.json(

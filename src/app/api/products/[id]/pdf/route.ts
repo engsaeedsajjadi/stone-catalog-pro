@@ -9,6 +9,8 @@ import sharp from 'sharp'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { db } from '@/lib/db'
+import { isUsablePrice } from '@/lib/product-presentation'
+import { PUBLIC_PRICE_TYPES } from '@/lib/stone-serialize'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
 import { checkSafeOutboundUrl } from '@/lib/url-safety'
@@ -96,7 +98,7 @@ export async function GET(
       include: {
         category: true,
         prices: {
-          where: { isActive: true },
+          where: { isActive: true, type: { in: PUBLIC_PRICE_TYPES }, amount: { gt: 0 } },
         },
         images: {
           orderBy: { order: 'asc' },
@@ -229,7 +231,7 @@ export async function GET(
 
     y -= 22
 
-    for (const price of stone.prices) {
+    for (const price of stone.prices.filter(p => PUBLIC_PRICE_TYPES.includes(p.type) && isUsablePrice(p))) {
       page.drawText(
         `${fitText(price.type)} / ${fitText(price.currency)}`,
         {

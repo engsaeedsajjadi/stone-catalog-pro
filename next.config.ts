@@ -21,7 +21,7 @@ function buildContentSecurityPolicy() {
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
-    'upgrade-insecure-requests',
+    ...(!isDev ? ['upgrade-insecure-requests'] : []),
   ]
 
   return directives.join('; ')
@@ -42,6 +42,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: process.env.VERCEL ? undefined : 'standalone',
   reactStrictMode: true,
+  // Additional development hosts must be explicitly configured, never wildcarded.
+  allowedDevOrigins: process.env.DEV_ALLOWED_ORIGINS?.split(',').map(host => host.trim()).filter(Boolean),
 
   // عدم افشای فناوری سمت سرور
   poweredByHeader: false,

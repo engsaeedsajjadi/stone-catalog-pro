@@ -1,3 +1,11 @@
+/** Zarinpal receives whole rials for both request and verification. */
+export function toGatewayRials(amount: number, currency: string): number {
+  if (!['IRR', 'IRT'].includes(currency)) throw new Error('درگاه فقط ریال و تومان را پشتیبانی می‌کند.')
+  const value = amount * (currency === 'IRT' ? 10 : 1)
+  if (!Number.isSafeInteger(value) || value <= 0) throw new Error('مبلغ پرداخت باید یک عدد صحیح مثبت باشد.')
+  return value
+}
+
 /**
  * ایجاد پرداخت زرین‌پال
  */
@@ -5,8 +13,10 @@ export async function createZarinpalPayment(
   orderId: string,
   amount: number,
   callback: string,
-  description: string
-): Promise<{ authority: string; url: string }> {
+  description: string,
+  currency: string = 'IRR'
+): Promise<{ authority: string; url: string; gatewayAmount: number; gatewayCurrency: string }> {
+  const gatewayAmount = toGatewayRials(amount, currency)
   const merchant = process.env.ZARINPAL_MERCHANT_ID
 
   if (!merchant) {
@@ -17,11 +27,12 @@ export async function createZarinpalPayment(
     'https://payment.zarinpal.com/pg/v4/payment/request.json',
     {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         merchant_id: merchant,
-        amount,
-        currency: 'IRT',
+        amount: gatewayAmount,
+        currency: 'IRR',
         description,
         callback_url: callback,
         metadata: { order_id: orderId },
@@ -41,6 +52,8 @@ export async function createZarinpalPayment(
   }
 
   return {
+    gatewayAmount,
+    gatewayCurrency: 'IRR',
     authority: data.data.authority,
     url: `https://www.zarinpal.com/pg/StartPay/${data.data.authority}`,
   }
@@ -63,6 +76,7 @@ export async function verifyZarinpalPayment(
     'https://payment.zarinpal.com/pg/v4/payment/verify.json',
     {
       method: 'POST',
+      signal: AbortSignal.timeout(15000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         merchant_id: merchant,

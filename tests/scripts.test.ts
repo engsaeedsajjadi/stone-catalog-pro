@@ -28,3 +28,10 @@ describe('npm scripts', () => {
     }
   })
 })
+
+it('keeps migrations readable as UTF-8 and does not silently accept data loss', () => {
+  const bytes = readFileSync(path.resolve(__dirname, '../prisma/migrations/00000000000000_initial_enterprise_schema/migration.sql'))
+  expect(() => new TextDecoder('utf-8', { fatal: true }).decode(bytes)).not.toThrow()
+  expect(new TextDecoder().decode(bytes)).toContain('CREATE TABLE')
+  expect(pkg.scripts['db:push']).not.toContain('--accept-data-loss')
+})

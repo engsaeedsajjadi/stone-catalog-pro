@@ -3,9 +3,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword, hashToken, issueAccessToken, issueRefreshToken, REFRESH_TTL_MS } from '@/lib/security'
+import { hashToken, issueAccessToken, issueRefreshToken, REFRESH_TTL_MS } from '@/lib/security'
 import { setAuthCookies } from '@/lib/auth'
-import crypto from 'node:crypto'
 
 /**
  * GET /api/auth/google/callback — پردازش کال‌بک OAuth گوگل
@@ -66,26 +65,19 @@ export async function GET(req: NextRequest) {
 
     const info = await infoResp.json()
 
-    if (!info.email) {
+    if (!info.email || info.email_verified !== true) {
       return NextResponse.json(
-        { success: false, error: 'حساب گوگل ایمیل ندارد' },
+        { success: false, error: 'ایمیل حساب گوگل تأیید نشده است' },
         { status: 400 }
       )
     }
 
-    // یافتن یا ایجاد کاربر
+    // ورود فقط برای حسابی که قبلاً توسط مدیر مجاز شده است
     const email = info.email.toLowerCase()
-    let user = await db.user.findUnique({ where: { email } })
+    const user = await db.user.findUnique({ where: { email } })
 
     if (!user) {
-      user = await db.user.create({
-        data: {
-          email,
-          name: info.name || info.email,
-          password: await hashPassword(crypto.randomBytes(32).toString('hex')),
-          role: 'OPERATOR',
-        },
-      })
+      return NextResponse.json({ success: false, error: 'این حساب مجوز ورود ندارد؛ با مدیر مجموعه تماس بگیرید.' }, { status: 403 })
     }
 
     if (!user.isActive) {
@@ -96,10 +88,9 @@ export async function GET(req: NextRequest) {
     }
 
     // ایجاد سشن
-    const accessToken = issueAccessToken(user)
     const refreshToken = issueRefreshToken()
 
-    await db.session.create({
+    const session = await db.session.create({
       data: {
         userId: user.id,
         tokenHash: hashToken(refreshToken),
@@ -108,7 +99,7 @@ export async function GET(req: NextRequest) {
     })
 
     const res = NextResponse.redirect(new URL('/', req.url))
-    await setAuthCookies(res, accessToken, refreshToken)
+    await setAuthCookies(res, issueAccessToken(user, session.id), refreshToken)
     res.cookies.delete('google_oauth_state')
 
     return res

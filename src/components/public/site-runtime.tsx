@@ -1,4 +1,6 @@
-'use client'
+"use client";
+
+import { apiFetch } from "@/lib/api-fetch";
 
 import {
   createContext,
@@ -6,81 +8,80 @@ import {
   useEffect,
   useState,
   type ReactNode,
-} from 'react'
+} from "react";
 
-import type { SiteConfig } from '@/lib/site-config-types'
-import { emptySiteConfig } from '@/lib/site-config-types'
+import type { SiteConfig } from "@/lib/site-config-types";
+import { emptySiteConfig } from "@/lib/site-config-types";
 
-const SiteContext = createContext<SiteConfig>(emptySiteConfig)
+const SiteContext = createContext<SiteConfig>(emptySiteConfig);
 
-export const useSiteConfig = () => useContext(SiteContext)
+export const useSiteConfig = () => useContext(SiteContext);
 
 export function SiteRuntime({
   children,
+  initialConfig,
 }: {
-  children: ReactNode
+  children: ReactNode;
+  initialConfig?: SiteConfig;
 }) {
-  const [config, setConfig] = useState<SiteConfig>(emptySiteConfig)
+  const [config, setConfig] = useState<SiteConfig>(
+    initialConfig || emptySiteConfig,
+  );
 
   // فقط یک‌بار در mount — وابسته به مسیر نیست
   useEffect(() => {
-    fetch('/api/site-config', {
-      cache: 'no-store',
+    apiFetch("/api/site-config", {
+      cache: "no-store",
     })
       .then((r) => r.json())
       .then((d) => {
         if (d.success) {
-          setConfig(d.data)
+          setConfig(d.data);
         }
       })
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    const root = document.documentElement
+    const root = document.documentElement;
 
-    root.style.setProperty('--site-primary', config.theme.primary)
-    root.style.setProperty('--site-secondary', config.theme.secondary)
-    root.style.setProperty('--site-accent', config.theme.accent)
-    root.style.setProperty('--site-background', config.theme.background)
-    root.style.setProperty('--site-foreground', config.theme.foreground)
-    root.style.setProperty('--site-muted', config.theme.muted)
-    root.style.setProperty('--site-radius', config.theme.radius)
-    root.style.setProperty('--site-font', config.theme.font)
+    root.style.setProperty("--site-primary", config.theme.primary);
+    root.style.setProperty("--site-secondary", config.theme.secondary);
+    root.style.setProperty("--site-accent", config.theme.accent);
+    root.style.setProperty("--site-background", config.theme.background);
+    root.style.setProperty("--site-foreground", config.theme.foreground);
+    root.style.setProperty("--site-muted", config.theme.muted);
+    root.style.setProperty("--site-radius", config.theme.radius);
+    root.style.setProperty("--site-font", config.theme.font);
 
-    document.title =
-      config.seo.title ||
-      config.brand.nameFa ||
-      document.title
+    document.title = config.seo.title || config.brand.nameFa || document.title;
 
     // favicon تنظیم‌شده در بخش برند
-    const favicon = config.brand.faviconUrl || config.brand.logoUrl
+    const favicon = config.brand.faviconUrl || config.brand.logoUrl;
     if (favicon) {
-      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
       if (!link) {
-        link = document.createElement('link')
-        link.rel = 'icon'
-        document.head.appendChild(link)
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
       }
-      link.href = favicon
+      link.href = favicon;
     }
 
     // توضیحات متا و og:image
-    const description = config.seo.description
+    const description = config.seo.description;
     if (description) {
-      let meta = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+      let meta = document.querySelector<HTMLMetaElement>(
+        'meta[name="description"]',
+      );
       if (!meta) {
-        meta = document.createElement('meta')
-        meta.name = 'description'
-        document.head.appendChild(meta)
+        meta = document.createElement("meta");
+        meta.name = "description";
+        document.head.appendChild(meta);
       }
-      meta.content = description
+      meta.content = description;
     }
-  }, [config])
+  }, [config]);
 
-  return (
-    <SiteContext.Provider value={config}>
-      {children}
-    </SiteContext.Provider>
-  )
+  return <SiteContext.Provider value={config}>{children}</SiteContext.Provider>;
 }

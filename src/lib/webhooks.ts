@@ -36,7 +36,8 @@ export async function dispatchWebhook(
         type: 'WEBHOOK',
         payload: JSON.stringify({
           url: h.url,
-          body: { event, payload },
+          // Queue the exact signed bytes, including occurredAt.
+          body,
           headers: {
             'x-stone-signature': sig,
             'x-stone-event': event,

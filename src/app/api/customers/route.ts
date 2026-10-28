@@ -7,6 +7,8 @@ import { requireAuth } from '@/lib/auth'
 import { Prisma } from '@prisma/client'
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN', 'SALES_MANAGER', 'OPERATOR'])
+  if ('response' in auth) return auth.response
   try {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')

@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { normalizePhone } from '@/lib/phone'
 import { rateLimit } from '@/lib/rate-limit'
 import { getClientIp } from '@/lib/request'
 import { emitEvent } from '@/lib/webhooks'
@@ -20,7 +21,7 @@ import { emitEvent } from '@/lib/webhooks'
  */
 const publicInquirySchema = z.object({
   customerName: z.string().trim().min(2).max(200),
-  customerPhone: z.string().trim().min(5).max(30),
+  customerPhone: z.string().trim().transform(normalizePhone).pipe(z.string().regex(/^(?:09[0-9]{9}|\+[1-9][0-9]{7,14})$/, 'شماره تماس معتبر وارد کنید.')),
   customerEmail: z.string().trim().email().max(200).optional().or(z.literal('')),
   customerCountry: z.string().trim().max(100).optional(),
   customerCity: z.string().trim().max(100).optional(),
@@ -151,7 +152,7 @@ export async function POST(req: NextRequest) {
       occurredAt: new Date().toISOString(),
     })
 
-    return NextResponse.json({ success: true, data: inquiry }, { status: 201 })
+    return NextResponse.json({ success: true, data: { id: inquiry.id, status: inquiry.status } }, { status: 201 })
   } catch (error) {
     console.error('POST /api/inquiries error:', error)
     return NextResponse.json(

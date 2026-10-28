@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   try {
     const limit = Math.min(Number(req.nextUrl.searchParams.get('limit') || 24), 100)
     const viewer = await getViewer(req)
-    const result = await searchStones(q, limit, { restrictPrices: !viewer.isAuthenticated })
+    const result = await searchStones(q, limit, { restrictPrices: !viewer.canViewTradePrices })
 
     return NextResponse.json({
       success: true,

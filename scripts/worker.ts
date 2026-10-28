@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { db } from '../src/lib/db'
-import { checkSafeOutboundUrl } from '../src/lib/url-safety'
+import { deliverQueuedWebhook, type QueuedWebhook } from '../src/lib/webhook-delivery'
 
 /**
  * پردازش‌گر Jobهای پس‌زمینه (ارسال Webhook و ...)
@@ -22,7 +22,7 @@ let running = true
 let busy = false
 
 async function runJob(job: { id: string; payload: string; attempts: number }) {
-  let payload: { url?: string; body?: unknown; headers?: Record<string, string> }
+  let payload: QueuedWebhook
 
   try {
     payload = JSON.parse(job.payload)
@@ -34,28 +34,7 @@ async function runJob(job: { id: string; payload: string; attempts: number }) {
     return
   }
 
-  const safety = checkSafeOutboundUrl(payload.url)
-  if (!safety.ok) {
-    await db.job.update({
-      where: { id: job.id },
-      data: { status: 'FAILED', error: `آدرس مقصد مجاز نیست: ${safety.reason}`, completedAt: new Date() },
-    })
-    return
-  }
-
-  const response = await fetch(safety.url.toString(), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(payload.headers || {}),
-    },
-    body: JSON.stringify(payload.body ?? {}),
-    redirect: 'error',
-  })
-
-  if (!response.ok) {
-    throw new Error(`Job failed with status ${response.status}`)
-  }
+  await deliverQueuedWebhook(payload)
 
   await db.job.update({
     where: { id: job.id },

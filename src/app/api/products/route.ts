@@ -1,63 +1,69 @@
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { Prisma } from '@prisma/client'
-import { requireAuth } from '@/lib/auth'
-import { slugify } from '@/lib/slug'
-import { serializeStones } from '@/lib/stone-serialize'
-import { getViewer } from '@/lib/auth'
-import { emitEvent } from '@/lib/webhooks'
-import { rateLimit } from '@/lib/rate-limit'
-import { getClientIp } from '@/lib/request'
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import {
+  inventoryValuesSchema,
+  priceValuesSchema,
+} from "@/lib/catalog-validation";
+import { Prisma } from "@prisma/client";
+import { requireAuth } from "@/lib/auth";
+import { slugify } from "@/lib/slug";
+import { serializeStones } from "@/lib/stone-serialize";
+import { getViewer } from "@/lib/auth";
+import { emitEvent } from "@/lib/webhooks";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request";
 
 /** سقف تعداد آیتم در هر صفحه (جلوگیری از درخواست‌های سنگین) */
-const MAX_PAGE_SIZE = 100
+const MAX_PAGE_SIZE = 100;
 
 /** بیشترین تعداد محصولی که هنگام مرتب‌سازی بر اساس قیمت در نظر گرفته می‌شود */
-const PRICE_SORT_WINDOW = 5000
+const PRICE_SORT_WINDOW = 5000;
 
 export async function GET(req: NextRequest) {
   try {
     // محدودیت نرخ برای درخواست‌های عمومیِ لیست محصولات
-    const limited = await rateLimit(`products:${getClientIp(req)}`, 120, 60)
+    const limited = await rateLimit(`products:${getClientIp(req)}`, 120, 60);
     if (!limited.allowed) {
       return NextResponse.json(
-        { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
-        { status: 429 }
-      )
+        { success: false, error: "تعداد درخواست‌ها بیش از حد مجاز است" },
+        { status: 429 },
+      );
     }
 
     // بازدیدکننده‌ی ناشناس فقط لایه‌های قیمتی عمومی را می‌بیند
-    const viewer = await getViewer(req)
-    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+    const viewer = await getViewer(req);
+    const serializeOptions = { restrictPrices: !viewer.canViewTradePrices };
 
-    const { searchParams } = new URL(req.url)
-    const q = searchParams.get('q') || ''
-    const categorySlug = searchParams.get('category')
-    const color = searchParams.get('color')
-    const finish = searchParams.get('finish')
-    const thickness = searchParams.get('thickness')
-    const isExport = searchParams.get('export') === 'true'
-    const isFeatured = searchParams.get('featured') === 'true'
-    const isNewest = searchParams.get('newest') === 'true'
-    const isBestSeller = searchParams.get('bestseller') === 'true'
-    const inStock = searchParams.get('instock') === 'true'
-    const minPrice = searchParams.get('minPrice')
-    const maxPrice = searchParams.get('maxPrice')
-    const sort = searchParams.get('sort') || 'newest'
-    const requestedPage = parseInt(searchParams.get('page') || '1')
-    const requestedPageSize = parseInt(searchParams.get('pageSize') || '24')
+    const { searchParams } = new URL(req.url);
+    const q = searchParams.get("q") || "";
+    const categorySlug = searchParams.get("category");
+    const color = searchParams.get("color");
+    const finish = searchParams.get("finish");
+    const thickness = searchParams.get("thickness");
+    const isExport = searchParams.get("export") === "true";
+    const isFeatured = searchParams.get("featured") === "true";
+    const isNewest = searchParams.get("newest") === "true";
+    const isBestSeller = searchParams.get("bestseller") === "true";
+    const inStock = searchParams.get("instock") === "true";
+    const minPrice = searchParams.get("minPrice");
+    const maxPrice = searchParams.get("maxPrice");
+    const sort = searchParams.get("sort") || "newest";
+    const requestedPage = parseInt(searchParams.get("page") || "1");
+    const requestedPageSize = parseInt(searchParams.get("pageSize") || "24");
 
     // محدودسازی صفحه‌بندی برای جلوگیری از مصرف بیش از حد منابع
-    const page = Number.isFinite(requestedPage) ? Math.min(Math.max(requestedPage, 1), 10_000) : 1
+    const page = Number.isFinite(requestedPage)
+      ? Math.min(Math.max(requestedPage, 1), 10_000)
+      : 1;
     const pageSize = Number.isFinite(requestedPageSize)
       ? Math.min(Math.max(requestedPageSize, 1), MAX_PAGE_SIZE)
-      : 24
+      : 24;
 
     // TODO: پس از prisma generate، از Prisma.StoneWhereInput استفاده شود
-    const where: Prisma.StoneWhereInput = {}
+    const where: Prisma.StoneWhereInput = {};
     if (q) {
       where.OR = [
         { name: { contains: q } },
@@ -65,44 +71,67 @@ export async function GET(req: NextRequest) {
         { code: { contains: q } },
         { quarry: { contains: q } },
         { color: { contains: q } },
-      ]
+      ];
     }
     if (categorySlug) {
       const cat = await db.category.findUnique({
         where: { slug: categorySlug },
         select: { id: true, children: { select: { id: true } } },
-      })
+      });
       if (cat) {
-        const catIds = [cat.id, ...cat.children.map(c => c.id)]
-        where.categoryId = { in: catIds }
+        const catIds = [cat.id, ...cat.children.map((c) => c.id)];
+        where.categoryId = { in: catIds };
       }
     }
-    if (color) where.color = { contains: color, mode: 'insensitive' }
-    if (finish) where.surfaceFinish = finish
-    if (thickness) where.thickness = thickness
-    if (isExport) where.isExportGrade = true
-    if (isFeatured) where.isFeatured = true
-    if (isNewest) where.isNewest = true
-    if (isBestSeller) where.isBestSeller = true
-    if (inStock) where.inventory = { some: { availableSqm: { gt: 0 } } }
+    if (color) where.color = { contains: color, mode: "insensitive" };
+    if (finish) where.surfaceFinish = finish;
+    if (thickness) where.thickness = thickness;
+    if (isExport) where.isExportGrade = true;
+    if (isFeatured) where.isFeatured = true;
+    if (isNewest) where.isNewest = true;
+    if (isBestSeller) where.isBestSeller = true;
+    if (inStock) {
+      const rows = await db.$queryRaw<
+        Array<{ stoneId: string }>
+      >`SELECT DISTINCT "stoneId" FROM "Inventory" WHERE "availableSqm" > 0 AND "reservedSqm" >= 0 AND "availableSqm" + "reservedSqm" <= "totalSqm"`;
+      where.id = { in: rows.map((row) => row.stoneId) };
+    }
 
     // Price range filter
     if (minPrice || maxPrice) {
-      const priceFilter: Prisma.StonePriceWhereInput = { isActive: true, currency: 'IRR', type: 'PER_SQM' }
+      const priceFilter: Prisma.StonePriceWhereInput = {
+        isActive: true,
+        currency: "IRR",
+        type: "PER_SQM",
+        validFrom: { lte: new Date() },
+        OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      };
       if (minPrice || maxPrice) {
-        const amountFilter: { gte?: number; lte?: number } = {}
-        if (minPrice) amountFilter.gte = parseFloat(minPrice)
-        if (maxPrice) amountFilter.lte = parseFloat(maxPrice)
-        priceFilter.amount = amountFilter as Prisma.FloatFilter
+        const amountFilter: { gt: number; gte?: number; lte?: number } = {
+          gt: 1,
+        };
+        if (minPrice) amountFilter.gte = parseFloat(minPrice);
+        if (maxPrice) amountFilter.lte = parseFloat(maxPrice);
+        if (
+          [amountFilter.gte, amountFilter.lte].some(
+            (value) =>
+              value !== undefined && (!Number.isFinite(value) || value < 0),
+          )
+        )
+          return NextResponse.json(
+            { success: false, error: "محدوده قیمت نامعتبر است." },
+            { status: 400 },
+          );
+        priceFilter.amount = amountFilter as Prisma.FloatFilter;
       }
-      where.prices = { some: priceFilter }
+      where.prices = { some: priceFilter };
     }
 
     // مرتب‌سازی بر اساس قیمت با کوئری ایمن و صفحه‌بندی
-    const needsPriceSort = sort === 'price-asc' || sort === 'price-desc'
+    const needsPriceSort = sort === "price-asc" || sort === "price-desc";
 
     if (needsPriceSort) {
-      const priceOrder = sort === 'price-asc' ? 'asc' : 'desc'
+      const priceOrder = sort === "price-asc" ? "asc" : "desc";
 
       /**
        * ابتدا شناسه محصولات منطبق با فیلترها را می‌گیریم.
@@ -115,49 +144,56 @@ export async function GET(req: NextRequest) {
         where,
         select: { id: true },
         take: PRICE_SORT_WINDOW,
-      })
+      });
 
-      const matchingIds = matchingStones.map(s => s.id)
-      const total = matchingIds.length
-      const truncated = total === PRICE_SORT_WINDOW
+      const matchingIds = matchingStones.map((s) => s.id);
+      const total = matchingIds.length;
+      const truncated = total === PRICE_SORT_WINDOW;
 
       if (total === 0) {
         return NextResponse.json({
           success: true,
           data: [],
           pagination: { page, pageSize, total: 0, totalPages: 0 },
-        })
+        });
       }
 
       // مرتب‌سازی و صفحه‌بندی بر اساس قیمت با raw query ایمن (فقط شناسه‌ها)
-      const sortedIds = await db.$queryRawUnsafe(
+      const sortedIds = (await db.$queryRawUnsafe(
         `SELECT s.id
          FROM "Stone" s
-         INNER JOIN "StonePrice" sp ON sp."stoneId" = s.id
-           AND sp."isActive" = true
-           AND sp.type = 'PER_SQM'
-           AND sp.currency = 'IRR'
+         LEFT JOIN LATERAL (
+           SELECT sp.amount FROM "StonePrice" sp
+           WHERE sp."stoneId" = s.id AND sp."isActive" = true
+             AND sp.type = 'PER_SQM' AND sp.currency = 'IRR' AND sp.amount > 1
+             AND sp."validFrom" <= CURRENT_TIMESTAMP
+             AND (sp."validUntil" IS NULL OR sp."validUntil" > CURRENT_TIMESTAMP)
+           ORDER BY sp."createdAt" DESC LIMIT 1
+         ) price ON true
          WHERE s.id = ANY($1)
-         ORDER BY sp.amount ${priceOrder === 'asc' ? 'ASC' : 'DESC'}
+         ORDER BY price.amount ${priceOrder === "asc" ? "ASC" : "DESC"} NULLS LAST, s.id
          LIMIT $2 OFFSET $3`,
         matchingIds,
         pageSize,
-        (page - 1) * pageSize
-      ) as Array<{ id: string }>
+        (page - 1) * pageSize,
+      )) as Array<{ id: string }>;
 
       const pagedStones = await db.stone.findMany({
-        where: { id: { in: sortedIds.map(r => r.id) } },
+        where: { id: { in: sortedIds.map((r) => r.id) } },
         include: {
           category: true,
-          images: { take: 1, orderBy: { order: 'asc' } },
+          images: { take: 1, orderBy: { order: "asc" } },
           prices: { where: { isActive: true } },
           inventory: { include: { warehouse: true } },
         },
-      })
+      });
 
       // حفظ ترتیب مرتب‌سازی SQL
-      const idOrder = new Map(sortedIds.map((r, i) => [r.id, i]))
-      pagedStones.sort((a: { id: string }, b: { id: string }) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0))
+      const idOrder = new Map(sortedIds.map((r, i) => [r.id, i]));
+      pagedStones.sort(
+        (a: { id: string }, b: { id: string }) =>
+          (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0),
+      );
 
       return NextResponse.json({
         success: true,
@@ -169,13 +205,13 @@ export async function GET(req: NextRequest) {
           totalPages: Math.ceil(total / pageSize),
           truncated,
         },
-      })
+      });
     }
 
     // Standard sort
-    let orderBy: Prisma.StoneOrderByWithRelationInput = { createdAt: 'desc' }
-    if (sort === 'popular') orderBy = { viewCount: 'desc' }
-    if (sort === 'rating') orderBy = { rating: 'desc' }
+    let orderBy: Prisma.StoneOrderByWithRelationInput = { createdAt: "desc" };
+    if (sort === "popular") orderBy = { viewCount: "desc" };
+    if (sort === "rating") orderBy = { rating: "desc" };
 
     const [total, stones] = await Promise.all([
       db.stone.count({ where }),
@@ -186,12 +222,12 @@ export async function GET(req: NextRequest) {
         take: pageSize,
         include: {
           category: true,
-          images: { take: 1, orderBy: { order: 'asc' } },
+          images: { take: 1, orderBy: { order: "asc" } },
           prices: { where: { isActive: true } },
           inventory: { include: { warehouse: true } },
         },
       }),
-    ])
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -202,113 +238,241 @@ export async function GET(req: NextRequest) {
         total,
         totalPages: Math.ceil(total / pageSize),
       },
-    })
+    });
   } catch (e) {
-    console.error('GET /api/products error:', e)
-    return NextResponse.json({ success: false, error: 'خطای داخلی سرور' }, { status: 500 })
+    console.error("GET /api/products error:", e);
+    return NextResponse.json(
+      { success: false, error: "خطای داخلی سرور" },
+      { status: 500 },
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth(req, ['ADMIN', 'SALES_MANAGER', 'OPERATOR'])
-  if ('response' in auth) return auth.response
+  const auth = await requireAuth(req, ["ADMIN", "SALES_MANAGER", "OPERATOR"]);
+  if ("response" in auth) return auth.response;
   try {
-    const body = await req.json()
-    const { prices, images, imageAssets, inventory, categorySlug, ...rest } = body
+    const body = await req.json();
+    const { prices, images, imageAssets, inventory, categorySlug, ...rest } =
+      body;
+
+    if (inventory) {
+      const parsed = inventoryValuesSchema.safeParse(inventory);
+      if (!parsed.success)
+        return NextResponse.json(
+          {
+            success: false,
+            error: parsed.error.issues[0]?.message || "موجودی نامعتبر است.",
+          },
+          { status: 400 },
+        );
+      Object.assign(inventory, parsed.data);
+    }
+    if (Array.isArray(prices))
+      for (const price of prices) {
+        const parsed = priceValuesSchema.safeParse(price);
+        if (!parsed.success)
+          return NextResponse.json(
+            {
+              success: false,
+              error: parsed.error.issues[0]?.message || "قیمت نامعتبر است.",
+            },
+            { status: 400 },
+          );
+        Object.assign(price, parsed.data);
+      }
 
     if (!rest.name || !rest.code) {
-      return NextResponse.json({ success: false, error: 'نام و کد محصول الزامی است' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "نام و کد محصول الزامی است" },
+        { status: 400 },
+      );
     }
 
     // Check code uniqueness
-    const existing = await db.stone.findUnique({ where: { code: rest.code } })
+    const existing = await db.stone.findUnique({ where: { code: rest.code } });
     if (existing) {
-      return NextResponse.json({ success: false, error: 'این کد محصول قبلاً استفاده شده است' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "این کد محصول قبلاً استفاده شده است" },
+        { status: 400 },
+      );
     }
 
     // Resolve category
-    let categoryId = rest.categoryId
+    let categoryId = rest.categoryId;
     if (!categoryId && categorySlug) {
-      const cat = await db.category.findUnique({ where: { slug: categorySlug } })
-      if (cat) categoryId = cat.id
+      const cat = await db.category.findUnique({
+        where: { slug: categorySlug },
+      });
+      if (cat) categoryId = cat.id;
     }
     if (!categoryId) {
-      return NextResponse.json({ success: false, error: 'دسته‌بندی محصول الزامی است' }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "دسته‌بندی محصول الزامی است" },
+        { status: 400 },
+      );
     }
 
     // Filter out unknown fields to prevent Prisma errors
     const stoneFields = [
-      'name', 'nameEn', 'code', 'categoryId', 'quarry', 'quarryEn', 'country',
-      'color', 'colorSecondary', 'pattern', 'processingType', 'surfaceFinish',
-      'thickness', 'width', 'length', 'weight', 'waterAbsorption',
-      'compressiveStrength', 'abrasionResistance', 'density',
-      'application', 'suitableFor', 'exportCountries', 'features',
-      'description', 'descriptionEn', 'tags', 'slug',
-      'isFeatured', 'isNewest', 'isBestSeller', 'isExportGrade',
-      'status', 'rating',
-    ]
-     
-    const stoneData: any = { categoryId }
+      "name",
+      "nameEn",
+      "code",
+      "categoryId",
+      "quarry",
+      "quarryEn",
+      "country",
+      "color",
+      "colorSecondary",
+      "pattern",
+      "processingType",
+      "surfaceFinish",
+      "thickness",
+      "width",
+      "length",
+      "weight",
+      "waterAbsorption",
+      "compressiveStrength",
+      "abrasionResistance",
+      "density",
+      "application",
+      "suitableFor",
+      "exportCountries",
+      "features",
+      "description",
+      "descriptionEn",
+      "tags",
+      "slug",
+      "isFeatured",
+      "isNewest",
+      "isBestSeller",
+      "isExportGrade",
+      "status",
+      "rating",
+    ];
+
+    const stoneData: any = { categoryId };
     for (const f of stoneFields) {
-      if (body[f] !== undefined) stoneData[f] = body[f]
+      if (body[f] !== undefined) stoneData[f] = body[f];
     }
     // Booleans default to false if not provided
-    if (stoneData.isFeatured === undefined) stoneData.isFeatured = false
-    if (stoneData.isNewest === undefined) stoneData.isNewest = false
-    if (stoneData.isBestSeller === undefined) stoneData.isBestSeller = false
-    if (stoneData.isExportGrade === undefined) stoneData.isExportGrade = false
-    if (stoneData.status === undefined) stoneData.status = 'AVAILABLE'
-    if (stoneData.slug === undefined || !stoneData.slug) stoneData.slug = slugify(`${stoneData.name}-${stoneData.code}`)
+    if (stoneData.isFeatured === undefined) stoneData.isFeatured = false;
+    if (stoneData.isNewest === undefined) stoneData.isNewest = false;
+    if (stoneData.isBestSeller === undefined) stoneData.isBestSeller = false;
+    if (stoneData.isExportGrade === undefined) stoneData.isExportGrade = false;
+    if (stoneData.status === undefined) stoneData.status = "AVAILABLE";
+    if (stoneData.slug === undefined || !stoneData.slug)
+      stoneData.slug = slugify(`${stoneData.name}-${stoneData.code}`);
 
-    if (images?.length) return NextResponse.json({ success: false, error: 'تصاویر باید از طریق آپلودر فایل ثبت شوند' }, { status: 400 })
-    const validMediaIds = (imageAssets || []).map((x: any) => x.mediaAssetId).filter(Boolean)
+    if (images?.length)
+      return NextResponse.json(
+        { success: false, error: "تصاویر باید از طریق آپلودر فایل ثبت شوند" },
+        { status: 400 },
+      );
+    const validMediaIds = (imageAssets || [])
+      .map((x: any) => x.mediaAssetId)
+      .filter(Boolean);
     if (validMediaIds.length) {
-      const count = await db.mediaAsset.count({ where: { id: { in: validMediaIds } } })
-      if (count !== validMediaIds.length) return NextResponse.json({ success: false, error: 'یکی از فایل‌های تصویر معتبر نیست' }, { status: 400 })
+      const count = await db.mediaAsset.count({
+        where: { id: { in: validMediaIds } },
+      });
+      if (count !== validMediaIds.length)
+        return NextResponse.json(
+          { success: false, error: "یکی از فایل‌های تصویر معتبر نیست" },
+          { status: 400 },
+        );
     }
 
     const stone = await db.stone.create({
       data: {
         ...stoneData,
-        prices: prices?.length ? { create: prices.filter((p: any) => p.amount > 0) } : undefined,
-        images: validMediaIds.length ? { create: imageAssets.map((x: any) => ({ mediaAssetId: x.mediaAssetId, url: '', alt: x.alt || rest.name, type: x.type || 'GALLERY', isPrimary: !!x.isPrimary, order: x.order || 0 })) } : undefined,
+        prices: prices?.length
+          ? { create: prices.filter((p: any) => p.amount > 0) }
+          : undefined,
+        images: validMediaIds.length
+          ? {
+              create: imageAssets.map((x: any) => ({
+                mediaAssetId: x.mediaAssetId,
+                url: "",
+                alt: x.alt || rest.name,
+                type: x.type || "GALLERY",
+                isPrimary: !!x.isPrimary,
+                order: x.order || 0,
+              })),
+            }
+          : undefined,
       },
       include: { prices: true, images: true, inventory: true, category: true },
-    })
+    });
 
     if (validMediaIds.length) {
-      const media = await db.mediaAsset.findMany({ where: { id: { in: validMediaIds } }, select: { id: true, url: true } })
-      for (const item of media) await db.stoneImage.updateMany({ where: { stoneId: stone.id, mediaAssetId: item.id }, data: { url: item.url, thumbnail: item.url } })
+      const media = await db.mediaAsset.findMany({
+        where: { id: { in: validMediaIds } },
+        select: { id: true, url: true },
+      });
+      for (const item of media)
+        await db.stoneImage.updateMany({
+          where: { stoneId: stone.id, mediaAssetId: item.id },
+          data: { url: item.url, thumbnail: item.url },
+        });
     }
     if (inventory) {
-      const warehouse = await db.warehouse.upsert({ where: { code: inventory.warehouseCode || 'MAIN' }, update: {}, create: { code: inventory.warehouseCode || 'MAIN', name: inventory.warehouseName || 'Main Warehouse' } })
+      const warehouse = await db.warehouse.upsert({
+        where: { code: inventory.warehouseCode || "MAIN" },
+        update: {},
+        create: {
+          code: inventory.warehouseCode || "MAIN",
+          name: inventory.warehouseName || "Main Warehouse",
+        },
+      });
       await db.inventory.upsert({
-        where: { stoneId_warehouseId: { stoneId: stone.id, warehouseId: warehouse.id } },
-        update: { slabCount: inventory.slabCount || 0, totalSqm: inventory.totalSqm || 0, availableSqm: inventory.availableSqm || 0, reservedSqm: inventory.reservedSqm || 0, inProductionSqm: inventory.inProductionSqm || 0, blockCount: inventory.blockCount || 0 },
-        create: { stoneId: stone.id, warehouseId: warehouse.id, slabCount: inventory.slabCount || 0, totalSqm: inventory.totalSqm || 0, availableSqm: inventory.availableSqm || 0, reservedSqm: inventory.reservedSqm || 0, inProductionSqm: inventory.inProductionSqm || 0, blockCount: inventory.blockCount || 0 },
-      })
+        where: {
+          stoneId_warehouseId: { stoneId: stone.id, warehouseId: warehouse.id },
+        },
+        update: {
+          slabCount: inventory.slabCount || 0,
+          totalSqm: inventory.totalSqm || 0,
+          availableSqm: inventory.availableSqm || 0,
+          reservedSqm: inventory.reservedSqm || 0,
+          inProductionSqm: inventory.inProductionSqm || 0,
+          blockCount: inventory.blockCount || 0,
+        },
+        create: {
+          stoneId: stone.id,
+          warehouseId: warehouse.id,
+          slabCount: inventory.slabCount || 0,
+          totalSqm: inventory.totalSqm || 0,
+          availableSqm: inventory.availableSqm || 0,
+          reservedSqm: inventory.reservedSqm || 0,
+          inProductionSqm: inventory.inProductionSqm || 0,
+          blockCount: inventory.blockCount || 0,
+        },
+      });
     }
 
     // Audit log
     await db.stoneAuditLog.create({
       data: {
         stoneId: stone.id,
-        action: 'CREATE',
+        action: "CREATE",
         userId: auth.user.id,
         newValue: `محصول جدید با کد ${stone.code} ایجاد شد`,
       },
-    })
+    });
 
-    emitEvent('product.created', {
+    emitEvent("product.created", {
       id: stone.id,
       code: stone.code,
       name: stone.name,
       occurredAt: new Date().toISOString(),
-    })
+    });
 
-    return NextResponse.json({ success: true, data: stone })
+    return NextResponse.json({ success: true, data: stone });
   } catch (e) {
-    console.error('POST /api/products error:', e)
-    return NextResponse.json({ success: false, error: 'ایجاد محصول ناموفق بود' }, { status: 500 })
+    console.error("POST /api/products error:", e);
+    return NextResponse.json(
+      { success: false, error: "ایجاد محصول ناموفق بود" },
+      { status: 500 },
+    );
   }
 }

@@ -25,6 +25,7 @@ const PUBLIC_ROUTES = new Map<string, Set<string>>([
   ['/api/qr', new Set(['GET'])],
   ['/api/settings/public', new Set(['GET'])],
   ['/api/site-config', new Set(['GET'])],
+  ['/api/payments/zarinpal/callback', new Set(['GET'])],
 ])
 
 function base64UrlDecode(value: string) {

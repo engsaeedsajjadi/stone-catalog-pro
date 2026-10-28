@@ -1,5 +1,7 @@
 'use client'
 
+import { apiFetch } from '@/lib/api-fetch'
+
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -86,7 +88,7 @@ export function ImageUploader({
         const form = new FormData()
         form.append('file', file)
 
-        const response = await fetch(
+        const response = await apiFetch(
           '/api/uploads',
           {
             method: 'POST',

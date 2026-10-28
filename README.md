@@ -1,6 +1,8 @@
 # Stone Catalog Pro — Enterprise Edition
 
-پلتفرم Enterprise کاتالوگ دیجیتال، مدیریت فروش، CRM و سایت‌ساز بدون کدنویسی.
+پلتفرم کاتالوگ دیجیتال، مدیریت فروش، CRM و سایت‌ساز بدون کدنویسی، با رابط فارسی راست‌به‌چپ.
+
+بازطراحی تجاری و اصلاحات امنیتی این نسخه در [گزارش تغییرات](docs/commercial-ui-and-security.md) آمده است.
 
 ## مهم‌ترین قابلیت جدید: Site Designer
 
@@ -161,3 +163,28 @@ npx tsc --noEmit
 npm run lint
 npm run build
 ```
+
+
+## اجرای مهاجرت‌ها و بررسی نسخه
+
+برای دیتابیس تازه، بعد از نصب و تنظیم `.env`، `npm run db:deploy` را اجرا کنید. Compose این مرحله را با سرویس `migrate` پیش از شروع برنامه و Worker اجرا می‌کند. در استقرار Vercel نیز همین دستور باید پیش از اجرای نسخه جدید، در محیطی با دسترسی به دیتابیس اجرا شود. فیلدهای جدید `Payment.gatewayAmount` و `Payment.gatewayCurrency` اختیاری هستند و تراکنش‌های قبلی حفظ می‌شوند.
+
+اگر دیتابیس قدیمی با `db push` ساخته شده و جدول‌های آن وجود دارند ولی تاریخچهٔ migration ندارد، ابتدا از آن نسخهٔ پشتیبان بگیرید، schema را با migrationهای موجود تطبیق دهید و تنها migrationهای واقعاً اعمال‌شده را با `prisma migrate resolve --applied <migration-name>` به‌عنوان baseline ثبت کنید؛ سپس `npm run db:deploy` را اجرا کنید. این کار نباید با reset یا پذیرش خودکار حذف داده جایگزین شود.
+
+```bash
+npm ci
+npm run db:generate
+npm run db:deploy
+npm run lint
+npx tsc --noEmit
+npm test
+npm run test:db
+npm audit --omit=dev --audit-level=high
+npm run build
+```
+
+`test:db` در DATABASE_URL تنظیم‌شده یک schema تصادفی می‌سازد، زنجیرهٔ migration و جریان‌های واقعی API/Prisma را بررسی می‌کند و همان schema را در پایان پاک می‌کند. به CREATE/DROP SCHEMA نیاز دارد و جدول‌های موجود را reset نمی‌کند. CI از PostgreSQL 17 جداگانه استفاده می‌کند.
+
+ورود گوگل فقط برای حساب‌های موجود و فعال مجاز است. اگر `OTP_AUTO_CREATE=1` صریحاً فعال شود، ثبت‌نام عمومی فقط نقش `CUSTOMER` می‌گیرد؛ دسترسی پرسنل باید توسط مدیر تخصیص داده شود. قیمت‌های همکاری فقط برای نقش‌های پرسنلی نمایش داده می‌شوند. نشست‌های ورود با خروج، تغییر رمز یا غیرفعال‌سازی حساب قابل ابطال هستند.
+
+برای پیش‌نمایش توسعه از دامنه‌ای غیر از localhost، فقط همان hostname قابل اعتماد را در `DEV_ALLOWED_ORIGINS` بنویسید؛ چند hostname با ویرگول جدا می‌شوند. wildcard عمومی تعریف نکنید. این تنظیم فقط مربوط به dev server نکست است. سیاست upgrade به HTTPS نیز در build تولیدی فعال می‌ماند و برای توسعهٔ HTTP اعمال نمی‌شود.

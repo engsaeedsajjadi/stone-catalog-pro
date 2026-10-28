@@ -1,30 +1,36 @@
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
-import { db } from '@/lib/db'
-import { rateLimit } from '@/lib/rate-limit'
-import { getClientIp } from '@/lib/request'
-import { requireAuth } from '@/lib/auth'
-import { emitEvent } from '@/lib/webhooks'
+import { db } from "@/lib/db";
+import { rateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/request";
+import { randomUUID } from "node:crypto";
+import { requireAuth } from "@/lib/auth";
+import { emitEvent } from "@/lib/webhooks";
 
-const CURRENCIES = ['IRR', 'IRT', 'USD', 'EUR', 'AED', 'RUB'] as const
+const CURRENCIES = ["IRR", "IRT", "USD", "EUR", "AED", "RUB"] as const;
 
-const itemSchema = z.object({
-  stoneId: z.string().min(1).max(64),
-  quantity: z.number().positive().max(1_000_000),
-  unit: z.enum(['SQM', 'SLAB']).default('SQM'),
-  discount: z.number().min(0).max(100).default(0),
-  notes: z.string().max(500).optional(),
-})
+const itemSchema = z
+  .object({
+    stoneId: z.string().min(1).max(64),
+    quantity: z.number().positive().max(1_000_000),
+    unit: z.enum(["SQM", "SLAB"]).default("SQM"),
+    discount: z.number().min(0).max(100).default(0),
+    notes: z.string().max(500).optional(),
+  })
+  .refine((item) => item.unit !== "SLAB" || Number.isInteger(item.quantity), {
+    path: ["quantity"],
+    message: "تعداد اسلب باید عدد صحیح باشد.",
+  });
 
 const schema = z.object({
   customer: z.object({
     name: z.string().min(2).max(200),
     phone: z.string().min(5).max(30),
-    email: z.string().email().optional().or(z.literal('')),
+    email: z.string().email().optional().or(z.literal("")),
     country: z.string().max(100).optional(),
     city: z.string().max(100).optional(),
     address: z.string().max(500).optional(),
@@ -32,47 +38,54 @@ const schema = z.object({
 
   items: z.array(itemSchema).min(1).max(50),
 
-  currency: z.enum(CURRENCIES).default('IRR'),
+  currency: z.enum(CURRENCIES).default("IRR"),
 
   paymentMethod: z.string().max(50).optional(),
-})
+});
 
 /**
  * تعیین نوع قیمت بر اساس واحد سفارش
  */
-function priceTypeForUnit(unit: 'SQM' | 'SLAB') {
-  return unit === 'SLAB' ? 'PER_SLAB' : 'PER_SQM'
+function priceTypeForUnit(unit: "SQM" | "SLAB") {
+  return unit === "SLAB" ? "PER_SLAB" : "PER_SQM";
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = getClientIp(req)
-    const limited = await rateLimit(`checkout:${ip}`, 10, 60)
+    const ip = getClientIp(req);
+    const limited = await rateLimit(`checkout:${ip}`, 10, 60);
     if (!limited.allowed) {
       return NextResponse.json(
-        { success: false, error: 'تعداد درخواست‌ها بیش از حد مجاز است' },
-        { status: 429 }
-      )
+        { success: false, error: "تعداد درخواست‌ها بیش از حد مجاز است" },
+        { status: 429 },
+      );
     }
 
-    const viewer = await requireAuth(req)
-    if ('response' in viewer) return viewer.response
+    const viewer = await requireAuth(req);
+    if ("response" in viewer) return viewer.response;
 
-    const body = schema.parse(await req.json())
+    const body = schema.parse(await req.json());
+    const canDiscount = ["ADMIN", "SALES_MANAGER"].includes(viewer.user.role);
+    if (!canDiscount && body.items.some((item) => item.discount !== 0)) {
+      return NextResponse.json(
+        { success: false, error: "ثبت تخفیف فقط برای مدیر فروش مجاز است." },
+        { status: 403 },
+      );
+    }
 
     /* ------------------------------------------------------------------ */
     /* بررسی محصولات                                                       */
     /* ------------------------------------------------------------------ */
 
-    const ids = [...new Set(body.items.map((item) => item.stoneId))]
+    const ids = [...new Set(body.items.map((item) => item.stoneId))];
 
     const stones = await db.stone.findMany({
       where: { id: { in: ids } },
       select: { id: true, name: true },
-    })
+    });
 
     if (stones.length !== ids.length) {
-      throw new Error('یکی از محصولات موجود نیست')
+      throw new Error("یکی از محصولات موجود نیست");
     }
 
     /* ------------------------------------------------------------------ */
@@ -84,26 +97,41 @@ export async function POST(req: NextRequest) {
         stoneId: { in: ids },
         currency: body.currency,
         isActive: true,
+        amount: { gt: 1 },
+        AND: [
+          { validFrom: { lte: new Date() } },
+          { OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] },
+        ],
       },
-      orderBy: { createdAt: 'desc' },
-    })
+      orderBy: { createdAt: "desc" },
+    });
 
     const pricedItems = body.items.map((item) => {
       const preferred = priceRows.find(
-        (price) => price.stoneId === item.stoneId && price.type === priceTypeForUnit(item.unit)
-      )
-      const fallback = priceRows.find((price) => price.stoneId === item.stoneId)
-      const price = preferred || fallback
+        (price) =>
+          price.stoneId === item.stoneId &&
+          price.type === priceTypeForUnit(item.unit) &&
+          (price.minQuantity == null || price.minQuantity <= item.quantity),
+      );
+      const price = preferred;
 
       if (!price) {
-        const stone = stones.find((s) => s.id === item.stoneId)
+        const stone = stones.find((s) => s.id === item.stoneId);
         throw new Error(
-          `برای محصول «${stone?.name || item.stoneId}» قیمتی با ارز ${body.currency} تعریف نشده است`
-        )
+          `برای محصول «${stone?.name || item.stoneId}» قیمتی با ارز ${body.currency} تعریف نشده است`,
+        );
       }
 
-      const gross = item.quantity * price.amount
-      const total = gross * (1 - item.discount / 100)
+      const gross = item.quantity * price.amount;
+      const precision = ["IRR", "IRT"].includes(body.currency) ? 1 : 100;
+      const total =
+        Math.round(gross * (1 - item.discount / 100) * precision) / precision;
+      if (
+        !Number.isFinite(total) ||
+        total <= 0 ||
+        total > Number.MAX_SAFE_INTEGER
+      )
+        throw new Error("مبلغ سفارش باید مثبت و معتبر باشد.");
 
       return {
         stoneId: item.stoneId,
@@ -114,10 +142,16 @@ export async function POST(req: NextRequest) {
         notes: item.notes,
         total,
         currency: body.currency,
-      }
-    })
+      };
+    });
 
-    const subtotal = pricedItems.reduce((sum, item) => sum + item.total, 0)
+    const subtotal = pricedItems.reduce((sum, item) => sum + item.total, 0);
+    if (
+      !Number.isFinite(subtotal) ||
+      subtotal <= 0 ||
+      subtotal > Number.MAX_SAFE_INTEGER
+    )
+      throw new Error("جمع مبلغ سفارش نامعتبر است.");
 
     /* ------------------------------------------------------------------ */
     /* پیدا کردن / ایجاد مشتری                                             */
@@ -125,7 +159,7 @@ export async function POST(req: NextRequest) {
 
     let customer = await db.customer.findFirst({
       where: { phone: body.customer.phone },
-    })
+    });
 
     const customerData = {
       name: body.customer.name,
@@ -133,20 +167,23 @@ export async function POST(req: NextRequest) {
       country: body.customer.country,
       city: body.customer.city,
       address: body.customer.address,
-    }
+    };
 
-    if (customer) {
+    if (
+      customer &&
+      ["ADMIN", "SALES_MANAGER", "OPERATOR"].includes(viewer.user.role)
+    ) {
       customer = await db.customer.update({
         where: { id: customer.id },
         data: customerData,
-      })
-    } else {
+      });
+    } else if (!customer) {
       customer = await db.customer.create({
         data: {
           ...customerData,
           phone: body.customer.phone,
         },
-      })
+      });
     }
 
     /* ------------------------------------------------------------------ */
@@ -155,40 +192,41 @@ export async function POST(req: NextRequest) {
 
     const order = await db.order.create({
       data: {
-        orderNumber: `ORD-${Date.now()}`,
+        orderNumber: `ORD-${Date.now()}-${randomUUID().slice(0, 8)}`,
+        assigneeId: viewer.user.id,
         customerId: customer.id,
         totalAmount: subtotal,
         currency: body.currency,
         paymentMethod: body.paymentMethod,
         items: { create: pricedItems },
       },
-    })
+    });
 
-    emitEvent('order.created', {
+    emitEvent("order.created", {
       id: order.id,
       orderNumber: order.orderNumber,
       totalAmount: order.totalAmount,
       currency: order.currency,
       occurredAt: new Date().toISOString(),
-    })
+    });
 
-    return NextResponse.json({ success: true, data: order }, { status: 201 })
+    return NextResponse.json({ success: true, data: order }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { success: false, error: 'ورودی نامعتبر است', details: error.issues },
-        { status: 400 }
-      )
+        { success: false, error: "ورودی نامعتبر است", details: error.issues },
+        { status: 400 },
+      );
     }
 
-    console.error('Checkout error:', error)
+    console.error("Checkout error:", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'ثبت سفارش ناموفق بود',
+        error: error instanceof Error ? error.message : "ثبت سفارش ناموفق بود",
       },
-      { status: 400 }
-    )
+      { status: 400 },
+    );
   }
 }

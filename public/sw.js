@@ -7,7 +7,7 @@
  * - با هر تغییر نسخه، کش‌های قدیمی پاک می‌شوند
  */
 
-const CACHE = 'stone-catalog-v2'
+const CACHE = 'stone-catalog-v3'
 const MAX_CACHE_ENTRIES = 80
 
 self.addEventListener('install', (event) => {
@@ -35,7 +35,9 @@ function shouldCache(request, response) {
   if (url.pathname.startsWith('/api/')) return false
   if (url.pathname.startsWith('/_next/data/')) return false
 
-  return true
+  const cacheControl = response.headers.get('cache-control') || ''
+  if (/private|no-store/i.test(cacheControl)) return false
+  return url.pathname.startsWith('/_next/static/') || /\.(?:woff2?|ttf|png|jpe?g|webp|svg|ico)$/i.test(url.pathname)
 }
 
 async function trimCache(cache) {
@@ -69,7 +71,7 @@ self.addEventListener('fetch', (event) => {
         .catch(() => cached || Response.error())
 
       // استراتژی stale-while-revalidate برای منابع استاتیک
-      return cached || network
+      return request.mode === 'navigate' ? network : cached || network
     })()
   )
 })

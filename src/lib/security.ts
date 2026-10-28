@@ -62,9 +62,9 @@ function signJwt(payload: Record<string, unknown>) {
   return `${header}.${body}.${signature}`
 }
 
-export function issueAccessToken(user: { id: string; email: string; role: string; name: string }) {
+export function issueAccessToken(user: { id: string; email: string; role: string; name: string }, sessionId: string) {
   const now = Math.floor(Date.now() / 1000)
-  return signJwt({ sub: user.id, email: user.email, role: user.role, name: user.name, iat: now, exp: now + ACCESS_TTL_SECONDS })
+  return signJwt({ sub: user.id, sid: sessionId, email: user.email, role: user.role, name: user.name, iat: now, exp: now + ACCESS_TTL_SECONDS })
 }
 
 export function issueRefreshToken() {
@@ -90,8 +90,8 @@ export function verifyAccessToken(token: string) {
     if (signatureBuffer.length !== expectedBuffer.length) return null
     if (!timingSafeEqual(signatureBuffer, expectedBuffer)) return null
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
-    if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null
-    return payload as { sub: string; email: string; role: string; name: string; exp: number; iat: number }
+    if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000) || !payload.sub || !payload.sid) return null
+    return payload as { sub: string; sid: string; email: string; role: string; name: string; exp: number; iat: number }
   } catch {
     return null
   }

@@ -3,10 +3,14 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { z } from 'zod'
+import { priceValuesSchema } from '@/lib/catalog-validation'
 import { requireAuth } from '@/lib/auth'
 
 // Get all prices for a stone (or all)
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN', 'SALES_MANAGER', 'OPERATOR'])
+  if ('response' in auth) return auth.response
   try {
     const { searchParams } = new URL(req.url)
     const stoneId = searchParams.get('stoneId')
@@ -36,10 +40,16 @@ export async function PUT(req: NextRequest) {
       creates: { stoneId: string; type: string; amount: number; currency: string; minQuantity?: number; discount?: number; notes?: string }[]
     }
 
+    const validation = z.object({
+      updates: z.array(priceValuesSchema.omit({type:true,currency:true}).extend({id:z.string().min(1),validUntil:z.string().datetime().nullish()})).max(500).optional(),
+      creates: z.array(priceValuesSchema.extend({stoneId:z.string().min(1)})).max(500).optional(),
+    }).safeParse(body)
+    if (!validation.success) return NextResponse.json({ success:false,error:validation.error.issues[0]?.message || 'قیمت نامعتبر است.' },{status:400})
+
     const results = { updated: 0, created: 0, errors: [] as string[] }
 
     // Updates
-    for (const u of updates || []) {
+    for (const u of validation.data.updates || []) {
       try {
         const updated = await db.stonePrice.update({
           where: { id: u.id },
@@ -66,7 +76,7 @@ export async function PUT(req: NextRequest) {
     }
 
     // Creates
-    for (const c of creates || []) {
+    for (const c of validation.data.creates || []) {
       try {
         // Check if same type+currency already exists for this stone
         const existing = await db.stonePrice.findFirst({
@@ -118,6 +128,9 @@ export async function POST(req: NextRequest) {
   if ('response' in auth) return auth.response
   try {
     const body = await req.json()
+    const validation = priceValuesSchema.extend({stoneId:z.string().min(1)}).safeParse(body)
+    if (!validation.success) return NextResponse.json({ success:false,error:validation.error.issues[0]?.message || 'قیمت نامعتبر است.' },{status:400})
+    Object.assign(body, validation.data)
     // Check if exists, then update or create
     const existing = await db.stonePrice.findFirst({
       where: { stoneId: body.stoneId, type: body.type, currency: body.currency },

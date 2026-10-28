@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { inventoryValuesSchema, priceValuesSchema } from '@/lib/catalog-validation'
 import { requireAuth } from '@/lib/auth'
 import { slugify } from '@/lib/slug'
 import { serializeStone } from '@/lib/stone-serialize'
@@ -29,7 +30,7 @@ export async function GET(
     if (!stone) return NextResponse.json({ success: false, error: 'محصول یافت نشد' }, { status: 404 })
 
     const viewer = await getViewer(_req)
-    const serializeOptions = { restrictPrices: !viewer.isAuthenticated }
+    const serializeOptions = { restrictPrices: !viewer.canViewTradePrices }
 
     // افزایش شمارنده بازدید — از طریق Job برای عملکرد بهتر
     // به‌جای write مستقیم، از increment بدون await استفاده می‌شود
@@ -59,6 +60,17 @@ export async function PUT(
     const { id } = await params
     const body = await req.json()
     const { prices, inventory, imageAssets, images, categorySlug, ...restBody } = body
+
+    if (inventory) {
+      const parsed = inventoryValuesSchema.safeParse(inventory)
+      if (!parsed.success) return NextResponse.json({ success:false,error:parsed.error.issues[0]?.message || 'موجودی نامعتبر است.' },{status:400})
+      Object.assign(inventory, parsed.data)
+    }
+    if (Array.isArray(prices)) for (const price of prices) {
+      const parsed = priceValuesSchema.safeParse(price)
+      if (!parsed.success) return NextResponse.json({ success:false,error:parsed.error.issues[0]?.message || 'قیمت نامعتبر است.' },{status:400})
+      Object.assign(price, parsed.data)
+    }
 
     // Filter to only valid Stone fields
     const stoneFields = [

@@ -1,5 +1,7 @@
 'use client'
 
+import { apiFetch } from '@/lib/api-fetch'
+
 import { useState } from 'react'
 import { useAppStore } from '@/store/app-store'
 import { Button } from '@/components/ui/button'
@@ -20,7 +22,7 @@ export function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
